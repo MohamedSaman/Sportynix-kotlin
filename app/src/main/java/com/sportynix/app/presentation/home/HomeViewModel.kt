@@ -38,10 +38,12 @@ class HomeViewModel @Inject constructor(
     private fun observeVenuesStream() {
         getVenuesUseCase.getStream()
             .onEach { venues ->
-                state = state.copy(
-                    featuredVenues = venues.filter { it.isFeatured },
-                    nearbyVenues = venues
-                )
+                if (venues.isNotEmpty()) {
+                    state = state.copy(
+                        featuredVenues = venues.filter { it.isFeatured },
+                        nearbyVenues = venues
+                    )
+                }
             }
             .launchIn(viewModelScope)
     }
@@ -52,7 +54,12 @@ class HomeViewModel @Inject constructor(
             val sportTypeParam = if (category == "ALL") null else category
             when (val result = getVenuesUseCase.refresh(sportType = sportTypeParam)) {
                 is ApiResult.Success -> {
-                    state = state.copy(isLoading = false)
+                    val venues = result.data
+                    state = state.copy(
+                        isLoading = false,
+                        nearbyVenues = venues,
+                        featuredVenues = venues.filter { it.isFeatured }
+                    )
                 }
                 is ApiResult.Error -> {
                     state = state.copy(isLoading = false, errorMessage = result.message)

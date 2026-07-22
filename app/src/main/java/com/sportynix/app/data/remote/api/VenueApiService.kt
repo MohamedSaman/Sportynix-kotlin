@@ -1,5 +1,6 @@
 package com.sportynix.app.data.remote.api
 
+import com.google.gson.JsonElement
 import com.sportynix.app.data.remote.dto.TimeSlotDto
 import com.sportynix.app.data.remote.dto.VenueDto
 import retrofit2.Response
@@ -17,7 +18,7 @@ interface VenueApiService {
         @Query("per_page") perPage: Int? = null,
         @Query("latitude") latitude: String? = null,
         @Query("longitude") longitude: String? = null
-    ): Response<List<VenueDto>>
+    ): Response<JsonElement>
 
     @GET("api/venues/{id}/")
     suspend fun getVenueById(@Path("id") id: String): Response<VenueDto>
@@ -27,5 +28,5 @@ interface VenueApiService {
         @Path("sportId") sportId: String,
         @Query("date") date: String,
         @Query("venue") venueId: String
-    ): Response<List<TimeSlotDto>>
+    ): Response<JsonElement>
 }
