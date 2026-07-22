@@ -22,13 +22,13 @@ android {
             useSupportLibrary = true
         }
 
-        buildConfigField("String", "BASE_URL", "\"https://api-dev.sportynix.com/\"")
+        buildConfigField("String", "BASE_URL", "\"https://api.sportynix.com/\"")
         buildConfigField("String", "ONESIGNAL_APP_ID", "\"00000000-0000-0000-0000-000000000000\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8000/\"")
+            buildConfigField("String", "BASE_URL", "\"https://api.sportynix.com/\"")
             isDebuggable = true
         }
         create("staging") {
