@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -441,7 +443,7 @@ fun ProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Logout,
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
                                 contentDescription = "Log Out",
                                 tint = Color(0xFFEF4444),
                                 modifier = Modifier.size(20.dp)
@@ -606,7 +608,7 @@ private fun ProfilePhotoModal(
                             .border(1.dp, Color(0x20FFFFFF), CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White
                         )

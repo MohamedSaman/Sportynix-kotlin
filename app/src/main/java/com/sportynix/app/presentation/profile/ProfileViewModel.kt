@@ -79,6 +79,12 @@ class ProfileViewModel @Inject constructor(
                         errorMessage = result.message
                     )
                 }
+                else -> {
+                    state = state.copy(
+                        isLoading = false,
+                        isRefreshing = false
+                    )
+                }
             }
         }
     }
