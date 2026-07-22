@@ -218,7 +218,7 @@ fun NavGraph(
             ProfileScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                onNavigateToBookingHistory = {},
+                onNavigateToBookingHistory = { navController.navigate(Screen.BookingHistory.route) },
                 onLogout = {
                     navController.navigate(Screen.Welcome.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }

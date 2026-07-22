@@ -179,9 +179,40 @@ class AuthRepositoryImpl @Inject constructor(
 
     override fun isLoggedIn(): Flow<Boolean> = sessionManager.isLoggedIn
 
-    override suspend fun getCurrentUser(): User? {
-        val email = sessionManager.userEmail.firstOrNull() ?: return null
-        val name = sessionManager.userName.firstOrNull() ?: ""
-        return User(id = "", name = name, email = email)
+    override suspend fun getCurrentUser(): ApiResult<User> {
+        return try {
+            val response = apiService.getCurrentUser()
+            if (response.isSuccessful && response.body() != null) {
+                val userDomain = response.body()!!.toDomain()
+                sessionManager.saveSession(
+                    accessToken = sessionManager.accessToken.firstOrNull() ?: "",
+                    refreshToken = sessionManager.refreshToken.firstOrNull() ?: "",
+                    userId = userDomain.id,
+                    email = userDomain.email,
+                    name = userDomain.name
+                )
+                ApiResult.Success(userDomain)
+            } else if (response.code() == 401) {
+                ApiResult.Unauthorized
+            } else {
+                val cachedEmail = sessionManager.userEmail.firstOrNull()
+                val cachedName = sessionManager.userName.firstOrNull()
+                val cachedId = sessionManager.userId.firstOrNull()
+                if (!cachedEmail.isNullOrEmpty()) {
+                    ApiResult.Success(User(id = cachedId ?: "", name = cachedName ?: "", email = cachedEmail))
+                } else {
+                    ApiResult.ServerError(response.code(), response.message() ?: "Failed to load user profile")
+                }
+            }
+        } catch (e: Exception) {
+            val cachedEmail = sessionManager.userEmail.firstOrNull()
+            val cachedName = sessionManager.userName.firstOrNull()
+            val cachedId = sessionManager.userId.firstOrNull()
+            if (!cachedEmail.isNullOrEmpty()) {
+                ApiResult.Success(User(id = cachedId ?: "", name = cachedName ?: "", email = cachedEmail))
+            } else {
+                ApiResult.Error(message = e.localizedMessage ?: "Network error loading profile")
+            }
+        }
     }
 }

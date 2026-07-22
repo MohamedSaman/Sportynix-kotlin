@@ -87,7 +87,13 @@ data class UserDto(
     @SerializedName("email") val email: String,
     @SerializedName(value = "phone_number", alternate = ["phone"]) val phone: String?,
     @SerializedName(value = "profile_picture", alternate = ["avatarUrl", "avatar"]) val avatarUrl: String?,
-    @SerializedName("role") val role: String?
+    @SerializedName("role") val role: String?,
+    @SerializedName("points") val points: Int? = 0,
+    @SerializedName("bio") val bio: String? = null,
+    @SerializedName("email_verified_at") val emailVerifiedAt: String? = null,
+    @SerializedName("phone_verified_at") val phoneVerifiedAt: String? = null,
+    @SerializedName("is_phone_verified") val isPhoneVerified: Boolean? = null,
+    @SerializedName("must_verify_phone") val mustVerifyPhone: Boolean? = null
 )
 
 data class UnreadCountsDto(

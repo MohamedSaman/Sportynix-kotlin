@@ -23,5 +23,5 @@ interface AuthRepository {
     suspend fun resetPassword(email: String, otpCode: String, newPass: String, confirmPass: String): ApiResult<Unit>
     suspend fun logout(): ApiResult<Unit>
     fun isLoggedIn(): Flow<Boolean>
-    suspend fun getCurrentUser(): User?
+    suspend fun getCurrentUser(): ApiResult<User>
 }

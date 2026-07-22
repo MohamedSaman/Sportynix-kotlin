@@ -34,6 +34,7 @@ class SessionManager @Inject constructor(
     val accessToken: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_ACCESS_TOKEN] }
     val refreshToken: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_REFRESH_TOKEN] }
     val isLoggedIn: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_IS_LOGGED_IN] ?: false }
+    val userId: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_USER_ID] }
     val userName: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_USER_NAME] }
     val userEmail: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_USER_EMAIL] }
     val isDarkMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_DARK_MODE] ?: false }

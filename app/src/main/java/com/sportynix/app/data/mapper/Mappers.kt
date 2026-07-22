@@ -13,18 +13,29 @@ import com.sportynix.app.domain.model.User
 import com.sportynix.app.domain.model.Venue
 
 fun UserDto.toDomain(): User {
-    val displayName = when {
-        !username.isNullOrBlank() -> username
+    val fullName = when {
         !firstName.isNullOrBlank() || !lastName.isNullOrBlank() -> "${firstName.orEmpty()} ${lastName.orEmpty()}".trim()
+        !username.isNullOrBlank() -> username
         else -> email.substringBefore("@")
     }
+    val isEmailVerif = !emailVerifiedAt.isNullOrBlank()
+    val isPhoneVerif = !phoneVerifiedAt.isNullOrBlank() || isPhoneVerified == true || mustVerifyPhone == false
+
     return User(
         id = id,
-        name = displayName,
+        username = username.orEmpty(),
+        firstName = firstName.orEmpty(),
+        lastName = lastName.orEmpty(),
+        name = fullName,
         email = email,
         phone = phone.orEmpty(),
         avatarUrl = avatarUrl,
-        role = role ?: "USER"
+        bio = bio,
+        points = points ?: 0,
+        role = role ?: "USER",
+        isEmailVerified = isEmailVerif,
+        isPhoneVerified = isPhoneVerif,
+        mustVerifyPhone = mustVerifyPhone == true
     )
 }
 
