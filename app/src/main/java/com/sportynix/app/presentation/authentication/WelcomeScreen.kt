@@ -1,5 +1,9 @@
 package com.sportynix.app.presentation.authentication
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.sportynix.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,9 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SportsSoccer
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -57,19 +58,13 @@ fun WelcomeScreen(
         ) {
             Spacer(modifier = Modifier.height(60.dp))
 
-            Box(
-                modifier = Modifier
-                    .size(110.dp)
-                    .background(SportynixGreenPrimary.copy(alpha = 0.15f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SportsSoccer,
-                    contentDescription = "Sportynix Logo",
-                    tint = SportynixGreenPrimary,
-                    modifier = Modifier.size(64.dp)
-                )
-            }
+            val isDark = isSystemInDarkTheme()
+            val logoRes = if (isDark) R.drawable.logo_white else R.drawable.logo
+            Image(
+                painter = painterResource(id = logoRes),
+                contentDescription = "Sportynix Logo",
+                modifier = Modifier.size(110.dp)
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
             Text(

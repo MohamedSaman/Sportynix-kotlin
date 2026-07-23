@@ -48,6 +48,7 @@ fun TimeSlotDto.toDomain(): TimeSlot = TimeSlot(
 )
 
 fun VenueDto.toDomain(): Venue {
+    val primaryImage = imageUrlsList?.firstOrNull() ?: imageUrl.orEmpty()
     val imageList = when {
         !imageUrlsList.isNullOrEmpty() -> imageUrlsList
         !imageUrl.isNullOrEmpty() -> listOf(imageUrl)
@@ -63,6 +64,7 @@ fun VenueDto.toDomain(): Venue {
         pricePerHour = pricePerHour ?: 0.0,
         rating = rating ?: 4.5f,
         reviewCount = reviewCount ?: 0,
+        imageUrl = primaryImage,
         imageUrls = imageList,
         availableSlots = availableSlots?.map { it.toDomain() } ?: emptyList(),
         amenities = amenities ?: emptyList(),
@@ -97,6 +99,7 @@ fun VenueEntity.toDomain(): Venue = Venue(
     pricePerHour = pricePerHour,
     rating = rating,
     reviewCount = reviewCount,
+    imageUrl = imageUrl,
     imageUrls = if (imageUrl.isNotEmpty()) listOf(imageUrl) else emptyList(),
     availableSlots = emptyList(),
     amenities = emptyList(),

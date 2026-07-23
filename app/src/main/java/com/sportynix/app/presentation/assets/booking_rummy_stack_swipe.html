@@ -1,0 +1,212 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.screen{background:#0f0f13;border-radius:36px;max-width:380px;margin:1rem auto;padding:0 0 28px;min-height:820px;overflow:hidden}
+.header{padding:44px 24px 20px;text-align:center}
+.check-ring{width:60px;height:60px;border-radius:50%;background:#1a2e1a;border:2px solid #2ecc71;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;color:#2ecc71}
+.header h1{font-size:20px;font-weight:500;color:#2ecc71;margin-bottom:5px}
+.header p{font-size:12px;color:#666}
+.stack-area{position:relative;height:480px;margin:0 24px}
+.card{position:absolute;left:0;right:0;background:#1c1c26;border-radius:24px;border:0.5px solid rgba(255,255,255,0.08);padding:22px;cursor:grab;touch-action:none;will-change:transform}
+.card.dragging{cursor:grabbing;transition:none!important}
+.card-accent{position:absolute;top:0;left:0;right:0;height:4px;border-radius:24px 24px 0 0}
+.card-top-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.slot-badge{font-size:12px;font-weight:500;padding:4px 12px;border-radius:20px;letter-spacing:.4px}
+.bid{font-size:11px;color:#555}
+.time-block{margin-bottom:4px}
+.time-main{font-size:24px;font-weight:500;color:#f0f0f0;letter-spacing:-.5px}
+.time-sep{font-size:14px;color:#444;margin:0 7px}
+.date-line{font-size:12px;color:#555;margin-bottom:18px;display:flex;align-items:center;gap:5px}
+.qr-box{background:#fff;border-radius:14px;padding:14px;display:flex;align-items:center;justify-content:center;width:156px;height:156px;margin:0 auto 16px}
+.qr-box svg{width:100%;height:100%}
+.card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:14px;border-top:.5px solid rgba(255,255,255,0.06)}
+.status-row{display:flex;align-items:center;gap:5px}
+.sdot{width:7px;height:7px;border-radius:50%;background:#2ecc71}
+.slabel{font-size:12px;color:#2ecc71}
+.share-btn{background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.1);border-radius:10px;padding:5px 12px;font-size:12px;color:#999;cursor:pointer;display:flex;align-items:center;gap:4px}
+.swipe-hint{text-align:center;margin-top:16px;font-size:11px;color:#3a3a4a;display:flex;align-items:center;justify-content:center;gap:4px}
+.action-btns{display:flex;gap:12px;padding:20px 24px 0}
+.btn-sec{flex:1;padding:13px;border-radius:14px;background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.1);color:#ccc;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+.btn-pri{flex:1;padding:13px;border-radius:14px;background:#2ecc71;border:none;color:#081408;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+.counter{text-align:center;margin-top:12px;font-size:12px;color:#444}
+.counter span{color:#888;font-weight:500}
+</style>
+
+<h2 class="sr-only">Booking confirmation with swipeable stacked QR code cards, swipe sideways to cycle through 4 slots</h2>
+
+<div class="screen">
+  <div class="header">
+    <div class="check-ring"><i class="ti ti-check" aria-hidden="true"></i></div>
+    <h1>Booking confirmed!</h1>
+    <p>Your booking has been successfully placed.</p>
+  </div>
+
+  <div class="stack-area" id="stackArea"></div>
+  <div class="counter">Slot <span id="counterText">1</span> of 4</div>
+  <div class="swipe-hint"><i class="ti ti-arrows-left-right" style="font-size:13px" aria-hidden="true"></i> Swipe card sideways to cycle</div>
+
+  <div class="action-btns">
+    <button class="btn-sec"><i class="ti ti-users" style="font-size:16px" aria-hidden="true"></i> Assign team</button>
+    <button class="btn-pri"><i class="ti ti-home" style="font-size:16px" aria-hidden="true"></i> Home</button>
+  </div>
+</div>
+
+<script>
+const bookings = [
+  {slot:1,id:295,start:'12:00 PM',end:'01:00 PM',date:'May 14, 2026',color:'#2ecc71',bg:'#1a3b26'},
+  {slot:2,id:296,start:'03:00 PM',end:'04:00 PM',date:'May 14, 2026',color:'#3b82f6',bg:'#1a2440'},
+  {slot:3,id:297,start:'05:00 PM',end:'06:00 PM',date:'May 14, 2026',color:'#f59e0b',bg:'#2e2211'},
+  {slot:4,id:298,start:'07:00 PM',end:'08:00 PM',date:'May 14, 2026',color:'#a855f7',bg:'#241533'},
+];
+
+function makeQR(seed){
+  const cells=[];
+  const s=Math.sin(seed)*10000;
+  function r(n){return Math.floor(Math.abs(Math.sin(n*seed+7)*100))%2===0}
+  const modules=[];
+  for(let i=0;i<21;i++){modules[i]=[];for(let j=0;j<21;j++)modules[i][j]=r(i*21+j);}
+  [[0,0],[14,0],[0,14]].forEach(([row,col])=>{
+    for(let i=0;i<7;i++)for(let j=0;j<7;j++){
+      modules[row+i][col+j]=(i===0||i===6||j===0||j===6||( i>=2&&i<=4&&j>=2&&j<=4));
+    }
+  });
+  let svg='<svg viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">';
+  svg+='<rect width="21" height="21" fill="white"/>';
+  for(let i=0;i<21;i++)for(let j=0;j<21;j++)if(modules[i][j])svg+=`<rect x="${j}" y="${i}" width="1" height="1" fill="#111"/>`;
+  svg+='</svg>';
+  return svg;
+}
+
+const area=document.getElementById('stackArea');
+const counter=document.getElementById('counterText');
+let order=[...Array(bookings.length).keys()];
+let topIdx=0;
+
+const STACK=4;
+const offsets=[0,10,18,24];
+const scales=[1,.97,.94,.91];
+const alphas=[1,.7,.45,.25];
+
+function getVisualOrder(){
+  const arr=[];
+  for(let i=0;i<STACK;i++)arr.push(order[(topIdx+i)%order.length]);
+  return arr;
+}
+
+function buildCard(bIdx,depth){
+  const b=bookings[bIdx];
+  const el=document.createElement('div');
+  el.className='card';
+  el.dataset.bIdx=bIdx;
+  el.innerHTML=`
+    <div class="card-accent" style="background:${b.color}"></div>
+    <div class="card-top-row">
+      <span class="slot-badge" style="background:${b.bg};color:${b.color}">Slot ${b.slot}</span>
+      <span class="bid">ID #${b.id}</span>
+    </div>
+    <div class="time-block">
+      <span class="time-main">${b.start}</span><span class="time-sep">→</span><span class="time-main">${b.end}</span>
+    </div>
+    <div class="date-line"><i class="ti ti-calendar" style="font-size:13px" aria-hidden="true"></i>${b.date}</div>
+    <div class="qr-box">${makeQR(b.id)}</div>
+    <div class="card-footer">
+      <div class="status-row"><div class="sdot"></div><span class="slabel">Confirmed</span></div>
+      <button class="share-btn"><i class="ti ti-share" style="font-size:14px" aria-hidden="true"></i>Share</button>
+    </div>`;
+  setDepthStyle(el,depth,0);
+  return el;
+}
+
+function setDepthStyle(el,depth,extraX,extraRot){
+  const y=offsets[depth]||28;
+  const sc=scales[depth]||.88;
+  const op=alphas[depth]||0.15;
+  const rot=extraRot||0;
+  const tx=extraX||0;
+  el.style.transition=extraX!=null&&extraX!==0?'none':'transform .35s cubic-bezier(.25,.46,.45,.94), opacity .35s';
+  el.style.transform=`translateY(${y}px) translateX(${tx}px) scale(${sc}) rotate(${rot}deg)`;
+  el.style.opacity=op;
+  el.style.zIndex=STACK-depth;
+  if(depth===0)el.style.opacity=1;
+}
+
+let cardEls=[];
+function renderStack(){
+  area.innerHTML='';
+  cardEls=[];
+  const vis=getVisualOrder();
+  for(let d=STACK-1;d>=0;d--){
+    const el=buildCard(vis[d],d);
+    area.appendChild(el);
+    cardEls[d]=el;
+  }
+  attachDrag(cardEls[0],vis[0]);
+  counter.textContent=bookings[vis[0]].slot;
+}
+
+function animateOut(el,dir,cb){
+  el.style.transition='transform .38s cubic-bezier(.6,.04,.98,.34), opacity .3s';
+  el.style.transform=`translateY(0px) translateX(${dir*420}px) scale(1) rotate(${dir*18}deg)`;
+  el.style.opacity=0;
+  setTimeout(cb,380);
+}
+
+function promoteStack(){
+  topIdx=(topIdx+1)%order.length;
+}
+
+function attachDrag(el){
+  let startX=0,startY=0,curX=0,dragging=false;
+
+  function onStart(x,y){dragging=true;startX=x;startY=y;curX=0;el.classList.add('dragging');}
+  function onMove(x){
+    if(!dragging)return;
+    curX=x-startX;
+    const rot=curX*0.07;
+    el.style.transition='none';
+    el.style.transform=`translateY(0px) translateX(${curX}px) scale(1) rotate(${rot}deg)`;
+    el.style.opacity=1;
+    const prog=Math.min(Math.abs(curX)/120,1);
+    for(let d=1;d<STACK;d++){
+      if(!cardEls[d])continue;
+      const targetY=offsets[d]*(1-prog*0.6);
+      const targetSc=scales[d]+(1-scales[d])*prog*0.5;
+      const targetOp=alphas[d]+(1-alphas[d])*prog*0.4;
+      cardEls[d].style.transition='none';
+      cardEls[d].style.transform=`translateY(${targetY}px) scale(${targetSc})`;
+      cardEls[d].style.opacity=targetOp;
+    }
+  }
+  function onEnd(){
+    if(!dragging)return;
+    dragging=false;
+    el.classList.remove('dragging');
+    if(Math.abs(curX)>90){
+      const dir=curX>0?1:-1;
+      animateOut(el,dir,()=>{
+        promoteStack();
+        renderStack();
+      });
+    } else {
+      el.style.transition='transform .3s cubic-bezier(.25,.46,.45,.94), opacity .3s';
+      el.style.transform=`translateY(0px) translateX(0px) scale(1) rotate(0deg)`;
+      el.style.opacity=1;
+      for(let d=1;d<STACK;d++){
+        if(!cardEls[d])continue;
+        cardEls[d].style.transition='transform .3s cubic-bezier(.25,.46,.45,.94), opacity .3s';
+        cardEls[d].style.transform=`translateY(${offsets[d]}px) scale(${scales[d]})`;
+        cardEls[d].style.opacity=alphas[d];
+      }
+    }
+  }
+
+  el.addEventListener('mousedown',e=>{onStart(e.clientX,e.clientY);e.preventDefault();});
+  document.addEventListener('mousemove',e=>{onMove(e.clientX);});
+  document.addEventListener('mouseup',onEnd);
+  el.addEventListener('touchstart',e=>{onStart(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+  el.addEventListener('touchmove',e=>{onMove(e.touches[0].clientX);},{passive:true});
+  el.addEventListener('touchend',onEnd);
+}
+
+renderStack();
+</script>

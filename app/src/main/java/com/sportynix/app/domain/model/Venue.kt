@@ -10,10 +10,12 @@ data class Venue(
     val pricePerHour: Double,
     val rating: Float,
     val reviewCount: Int,
-    val imageUrls: List<String>,
+    val imageUrl: String = "",
+    val imageUrls: List<String> = emptyList(),
     val availableSlots: List<TimeSlot> = emptyList(),
     val amenities: List<String> = emptyList(),
-    val isFeatured: Boolean = false
+    val isFeatured: Boolean = false,
+    val distance: Double? = null
 )
 
 data class TimeSlot(

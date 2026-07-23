@@ -23,21 +23,25 @@ android {
         }
 
         buildConfigField("String", "BASE_URL", "\"https://api.sportynix.com/\"")
+        buildConfigField("String", "WS_BASE_URL", "\"wss://api.sportynix.com/\"")
         buildConfigField("String", "ONESIGNAL_APP_ID", "\"00000000-0000-0000-0000-000000000000\"")
     }
 
     buildTypes {
         debug {
             buildConfigField("String", "BASE_URL", "\"https://api.sportynix.com/\"")
+            buildConfigField("String", "WS_BASE_URL", "\"wss://api.sportynix.com/\"")
             isDebuggable = true
         }
         create("staging") {
             initWith(getByName("debug"))
             buildConfigField("String", "BASE_URL", "\"https://api-staging.sportynix.com/\"")
+            buildConfigField("String", "WS_BASE_URL", "\"wss://api-staging.sportynix.com/\"")
             matchingFallbacks.add("debug")
         }
         release {
             buildConfigField("String", "BASE_URL", "\"https://api.sportynix.com/\"")
+            buildConfigField("String", "WS_BASE_URL", "\"wss://api.sportynix.com/\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

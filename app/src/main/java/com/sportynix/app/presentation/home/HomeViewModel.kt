@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
+import com.sportynix.app.data.remote.api.AuthApiService
 import com.sportynix.app.domain.model.Venue
 import com.sportynix.app.domain.usecase.venue.GetVenuesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,13 +19,16 @@ data class HomeUiState(
     val featuredVenues: List<Venue> = emptyList(),
     val nearbyVenues: List<Venue> = emptyList(),
     val selectedCategory: String = "ALL",
+    val unreadNotificationsCount: Int = 0,
+    val unreadMessagesCount: Int = 0,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val getVenuesUseCase: GetVenuesUseCase
+    private val getVenuesUseCase: GetVenuesUseCase,
+    private val authApiService: AuthApiService
 ) : ViewModel() {
 
     var state by mutableStateOf(HomeUiState())
@@ -33,6 +37,7 @@ class HomeViewModel @Inject constructor(
     init {
         observeVenuesStream()
         refreshVenues()
+        fetchUnreadCounts()
     }
 
     private fun observeVenuesStream() {
@@ -46,6 +51,23 @@ class HomeViewModel @Inject constructor(
                 }
             }
             .launchIn(viewModelScope)
+    }
+
+    fun fetchUnreadCounts() {
+        viewModelScope.launch {
+            try {
+                val response = authApiService.getUnreadCounts()
+                if (response.isSuccessful && response.body() != null) {
+                    val counts = response.body()!!
+                    state = state.copy(
+                        unreadNotificationsCount = counts.notifications,
+                        unreadMessagesCount = counts.messages
+                    )
+                }
+            } catch (e: Exception) {
+                // Silently handle error for badge counts
+            }
+        }
     }
 
     fun refreshVenues(category: String = state.selectedCategory) {

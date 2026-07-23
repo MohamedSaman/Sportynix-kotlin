@@ -5,6 +5,10 @@ import com.sportynix.app.core.network.AuthInterceptor
 import com.sportynix.app.core.network.TokenAuthenticator
 import com.sportynix.app.data.remote.api.AuthApiService
 import com.sportynix.app.data.remote.api.BookingApiService
+import com.sportynix.app.data.remote.api.ChatApiService
+import com.sportynix.app.data.remote.api.NotificationApiService
+import com.sportynix.app.data.remote.api.SportsApiService
+import com.sportynix.app.data.remote.api.UserApiService
 import com.sportynix.app.data.remote.api.VenueApiService
 import dagger.Module
 import dagger.Provides
@@ -77,4 +81,53 @@ object NetworkModule {
     fun provideBookingApiService(retrofit: Retrofit): BookingApiService {
         return retrofit.create(BookingApiService::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideSportsApiService(retrofit: Retrofit): SportsApiService {
+        return retrofit.create(SportsApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationApiService(retrofit: Retrofit): NotificationApiService {
+        return retrofit.create(NotificationApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUserApiService(retrofit: Retrofit): UserApiService {
+        return retrofit.create(UserApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatApiService(retrofit: Retrofit): ChatApiService {
+        return retrofit.create(ChatApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideLeagueApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.LeagueApiService {
+        return retrofit.create(com.sportynix.app.data.remote.api.LeagueApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideTournamentApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.TournamentApiService {
+        return retrofit.create(com.sportynix.app.data.remote.api.TournamentApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideCricketScoringApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.CricketScoringApiService {
+        return retrofit.create(com.sportynix.app.data.remote.api.CricketScoringApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAuctionApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.AuctionApiService {
+        return retrofit.create(com.sportynix.app.data.remote.api.AuctionApiService::class.java)
+    }
 }
+

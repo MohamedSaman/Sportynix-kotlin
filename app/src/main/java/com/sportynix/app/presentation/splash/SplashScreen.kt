@@ -1,5 +1,9 @@
 package com.sportynix.app.presentation.splash
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.sportynix.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,9 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SportsSoccer
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,10 +47,11 @@ fun SplashScreen(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.SportsSoccer,
+            val isDark = isSystemInDarkTheme()
+            val logoRes = if (isDark) R.drawable.logo_white else R.drawable.logo
+            Image(
+                painter = painterResource(id = logoRes),
                 contentDescription = "Sportynix Logo",
-                tint = SportynixGreenPrimary,
                 modifier = Modifier.size(96.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
