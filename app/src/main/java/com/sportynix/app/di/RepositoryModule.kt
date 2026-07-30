@@ -41,4 +41,16 @@ abstract class RepositoryModule {
     abstract fun bindPaymentRepository(
         impl: PaymentRepositoryImpl
     ): PaymentRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAnnouncementRepository(
+        impl: com.sportynix.app.data.repository.AnnouncementRepositoryImpl
+    ): com.sportynix.app.domain.repository.AnnouncementRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSearchRepository(
+        impl: com.sportynix.app.data.repository.SearchRepositoryImpl
+    ): com.sportynix.app.domain.repository.SearchRepository
 }

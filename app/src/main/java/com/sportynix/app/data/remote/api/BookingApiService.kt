@@ -1,15 +1,9 @@
 package com.sportynix.app.data.remote.api
 
 import com.google.gson.JsonElement
-import com.sportynix.app.data.remote.dto.BookingDto
-import com.sportynix.app.data.remote.dto.CreateBookingRequestDto
-import com.sportynix.app.data.remote.dto.QrCodeResponseDto
+import com.sportynix.app.data.remote.dto.*
 import retrofit2.Response
-import retrofit2.http.Body
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.Path
-import retrofit2.http.Query
+import retrofit2.http.*
 
 interface BookingApiService {
     @GET("api/my-bookings/")
@@ -20,15 +14,45 @@ interface BookingApiService {
         @Query("status") status: String? = null
     ): Response<JsonElement>
 
-    @GET("api/my-bookings/{id}/")
-    suspend fun getBookingDetail(@Path("id") id: String): Response<BookingDto>
+    @GET("api/bookings/{id}/")
+    suspend fun getBookingDetail(@Path("id") id: String): Response<JsonElement>
 
-    @POST("api/bookings/")
-    suspend fun createBooking(@Body request: CreateBookingRequestDto): Response<BookingDto>
+    @GET("api/my-bookings/{id}/")
+    suspend fun getMyBookingDetail(@Path("id") id: String): Response<JsonElement>
+
+    @POST("api/bookings/quote/")
+    suspend fun getQuote(@Body request: QuoteRequestDto): Response<QuoteResponseDto>
+
+    @POST("api/my-bookings/")
+    suspend fun createBooking(@Body request: CreateBookingRequestDto): Response<JsonElement>
+
+    @POST("api/payments/checkout/")
+    suspend fun createPaymentCheckout(@Body request: PaymentCheckoutRequestDto): Response<PaymentCheckoutResponseDto>
+
+    @GET("api/payments/{orderId}/status/")
+    suspend fun getPaymentStatus(@Path("orderId") orderId: String): Response<PaymentStatusResponseDto>
+
+    @POST("api/bookings/{id}/assign-team/")
+    suspend fun assignTeam(
+        @Path("id") id: String,
+        @Body body: AssignTeamRequestDto
+    ): Response<JsonElement>
 
     @POST("api/bookings/{id}/cancel/")
-    suspend fun cancelBooking(@Path("id") id: String): Response<Unit>
+    suspend fun cancelBooking(
+        @Path("id") id: String,
+        @Body request: CancelBookingRequestDto = CancelBookingRequestDto()
+    ): Response<JsonElement>
 
-    @GET("api/my-bookings/{id}/qr_code/")
-    suspend fun getBookingQrCode(@Path("id") id: String): Response<QrCodeResponseDto>
+    @POST("api/bookings/{id}/cancel_series/")
+    suspend fun cancelSeries(
+        @Path("id") id: String,
+        @Body request: CancelBookingRequestDto = CancelBookingRequestDto()
+    ): Response<JsonElement>
+
+    @POST("api/users/request-otp/")
+    suspend fun requestPhoneOtp(@Body body: Map<String, String>): Response<JsonElement>
+
+    @POST("api/users/verify-otp/")
+    suspend fun verifyPhoneOtp(@Body body: Map<String, String>): Response<JsonElement>
 }

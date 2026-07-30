@@ -36,6 +36,7 @@ class VenueRepositoryImpl @Inject constructor(
             pricePerHour = 45.0,
             rating = 5.0f,
             reviewCount = 128,
+            imageUrl = "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600",
             imageUrls = listOf("https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600"),
             availableSlots = emptyList(),
             amenities = listOf("Parking", "Changing Rooms", "Cafeteria"),
@@ -51,6 +52,7 @@ class VenueRepositoryImpl @Inject constructor(
             pricePerHour = 50.0,
             rating = 4.8f,
             reviewCount = 94,
+            imageUrl = "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=600",
             imageUrls = listOf("https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=600"),
             availableSlots = emptyList(),
             amenities = listOf("Night Lights", "Equipment Rental"),
@@ -66,6 +68,7 @@ class VenueRepositoryImpl @Inject constructor(
             pricePerHour = 40.0,
             rating = 4.9f,
             reviewCount = 76,
+            imageUrl = "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=600",
             imageUrls = listOf("https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=600"),
             availableSlots = emptyList(),
             amenities = listOf("Air Conditioned", "Showers"),
@@ -84,24 +87,64 @@ class VenueRepositoryImpl @Inject constructor(
         return try {
             val response = apiService.getVenues(
                 search = query,
-                venueCategory = if (sportType != "ALL") sportType else null
+                venueCategory = if (sportType != null && sportType != "ALL") sportType else null
             )
             if (response.isSuccessful && response.body() != null) {
-                val jsonElement: JsonElement = response.body()!!
-                val dtos: List<VenueDto> = parseVenuesJson(jsonElement)
-
+                val dtos = parseVenuesJson(response.body()!!)
                 val domainVenues = dtos.map { it.toDomain() }
-                val finalVenues = if (domainVenues.isNotEmpty()) domainVenues else defaultVenues
-
-                venueDao.insertVenues(dtos.map { it.toEntity() })
-                ApiResult.Success(finalVenues)
+                if (domainVenues.isNotEmpty()) {
+                    venueDao.insertVenues(dtos.map { it.toEntity() })
+                    ApiResult.Success(domainVenues)
+                } else {
+                    ApiResult.Success(defaultVenues)
+                }
             } else {
-                Timber.w("Fetch venues returned code ${response.code()}, using fallback venues")
                 ApiResult.Success(defaultVenues)
             }
         } catch (e: Exception) {
-            Timber.e(e, "Error fetching venues, using fallback venues")
+            Timber.e(e, "Error fetching venues")
             ApiResult.Success(defaultVenues)
+        }
+    }
+
+    override suspend fun fetchFeaturedVenues(): ApiResult<List<Venue>> {
+        return try {
+            val response = apiService.getVenues(featured = 1, perPage = 5)
+            if (response.isSuccessful && response.body() != null) {
+                val dtos = parseVenuesJson(response.body()!!)
+                val domainVenues = dtos.map { it.toDomain() }
+                if (domainVenues.isNotEmpty()) {
+                    ApiResult.Success(domainVenues)
+                } else {
+                    ApiResult.Success(defaultVenues.filter { it.isFeatured })
+                }
+            } else {
+                ApiResult.Success(defaultVenues.filter { it.isFeatured })
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching featured venues")
+            ApiResult.Success(defaultVenues.filter { it.isFeatured })
+        }
+    }
+
+    override suspend fun fetchNearbyVenues(latitude: Double, longitude: Double): ApiResult<List<Venue>> {
+        return try {
+            val response = apiService.getVenues(
+                perPage = 5,
+                page = 1,
+                latitude = latitude,
+                longitude = longitude
+            )
+            if (response.isSuccessful && response.body() != null) {
+                val dtos = parseVenuesJson(response.body()!!)
+                val domainVenues = dtos.map { it.toDomain() }
+                ApiResult.Success(domainVenues)
+            } else {
+                ApiResult.Error(code = response.code(), message = "Failed to fetch nearby venues: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching nearby venues")
+            ApiResult.Error(message = e.message ?: "Failed to fetch nearby venues")
         }
     }
 
@@ -109,21 +152,13 @@ class VenueRepositoryImpl @Inject constructor(
         return try {
             val listType = object : TypeToken<List<VenueDto>>() {}.type
             when {
-                jsonElement.isJsonArray -> {
-                    gson.fromJson(jsonElement, listType)
-                }
+                jsonElement.isJsonArray -> gson.fromJson(jsonElement, listType)
                 jsonElement.isJsonObject -> {
                     val obj = jsonElement.asJsonObject
                     when {
-                        obj.has("results") && obj.get("results").isJsonArray -> {
-                            gson.fromJson(obj.get("results"), listType)
-                        }
-                        obj.has("venues") && obj.get("venues").isJsonArray -> {
-                            gson.fromJson(obj.get("venues"), listType)
-                        }
-                        obj.has("data") && obj.get("data").isJsonArray -> {
-                            gson.fromJson(obj.get("data"), listType)
-                        }
+                        obj.has("results") && obj.get("results").isJsonArray -> gson.fromJson(obj.get("results"), listType)
+                        obj.has("venues") && obj.get("venues").isJsonArray -> gson.fromJson(obj.get("venues"), listType)
+                        obj.has("data") && obj.get("data").isJsonArray -> gson.fromJson(obj.get("data"), listType)
                         else -> emptyList()
                     }
                 }
@@ -149,6 +184,30 @@ class VenueRepositoryImpl @Inject constructor(
             val localEntity = venueDao.getVenueById(id)
             val venue = localEntity?.toDomain() ?: defaultVenues.find { it.id == id } ?: defaultVenues.first()
             ApiResult.Success(venue)
+        }
+    }
+
+    override suspend fun submitVenueReview(
+        venueId: String,
+        rating: Int,
+        comment: String,
+        recommends: Boolean
+    ): ApiResult<Unit> {
+        return try {
+            val req = com.sportynix.app.data.remote.dto.ReviewRequestDto(
+                rating = rating,
+                comment = comment,
+                recommends = recommends
+            )
+            val response = apiService.submitVenueReview(venueId, req)
+            if (response.isSuccessful) {
+                ApiResult.Success(Unit)
+            } else {
+                ApiResult.Error(code = response.code(), message = "Failed to submit review")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error submitting review")
+            ApiResult.Error(message = e.message ?: "Failed to submit review")
         }
     }
 }

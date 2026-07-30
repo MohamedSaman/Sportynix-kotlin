@@ -1,517 +1,869 @@
 package com.sportynix.app.presentation.search
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.*
+import android.Manifest
+import android.content.Context
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
-import androidx.compose.ui.draw.*
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import com.sportynix.app.domain.model.Venue
+import com.sportynix.app.domain.model.SearchResult
+import com.sportynix.app.domain.model.SearchResultType
 import com.sportynix.app.presentation.components.GlassCard
 import com.sportynix.app.presentation.components.ShimmerSkeleton
-import com.sportynix.app.presentation.theme.*
+import com.sportynix.app.presentation.theme.AccentGold
+import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 
-@OptIn(ExperimentalMaterial3Api::class)
+data class PopularSportItem(
+    val id: String,
+    val name: String,
+    val emoji: String
+)
+
 @Composable
 fun SearchScreen(
     onNavigateBack: () -> Unit,
     onNavigateToVenueDetail: (String) -> Unit,
+    onNavigateToSportDetail: (String, String) -> Unit = { _, _ -> },
+    onNavigateToTeamDetail: (String) -> Unit = {},
+    onNavigateToEvents: () -> Unit = {},
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToHome: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
     val isDark = isSystemInDarkTheme()
-    val accentGreen = if (isDark) NeonGreen else SportynixGreenPrimary
-    val focusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fine || coarse) {
+            requestDeviceLocation(context, viewModel)
+        }
+    }
 
-    val filteredVenues = when (state.activeTab) {
-        SearchTab.VENUES -> state.venues
-        SearchTab.ALL -> state.venues
-        else -> emptyList()
+    LaunchedEffect(Unit) {
+        requestDeviceLocation(context, viewModel)
     }
-    val filteredTeams = when (state.activeTab) {
-        SearchTab.TEAMS -> state.teams
-        SearchTab.ALL -> state.teams
-        else -> emptyList()
+
+    val popularSports = remember {
+        listOf(
+            PopularSportItem("football", "Football", "⚽"),
+            PopularSportItem("basketball", "Basketball", "🏀"),
+            PopularSportItem("cricket", "Cricket", "🏏"),
+            PopularSportItem("badminton", "Badminton", "🏸"),
+            PopularSportItem("tennis", "Tennis", "🎾"),
+            PopularSportItem("swimming", "Swimming", "🏊")
+        )
     }
-    val totalResults = filteredVenues.size + filteredTeams.size
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        if (isDark) Color(0xFF0D1B2A) else Color.White
-                    )
-                    .statusBarsPadding()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Column {
-                    Row(
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(60.dp)
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(if (isDark) Color(0xFF1E262C) else Color(0xFFE2E8F0))
+                            .clickable { onNavigateBack() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        IconButton(onClick = { focusManager.clearFocus(); onNavigateBack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        // Glass Search Field
-                        OutlinedTextField(
-                            value = state.query,
-                            onValueChange = { viewModel.onQueryChanged(it) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp)
-                                .focusRequester(focusRequester),
-                            placeholder = {
-                                Text("Venues, teams, sports...", fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.6f))
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Search, contentDescription = null,
-                                    tint = accentGreen, modifier = Modifier.size(20.dp))
-                            },
-                            trailingIcon = {
-                                if (state.query.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.onQueryChanged("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear",
-                                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = accentGreen,
-                                unfocusedBorderColor = if (isDark) Color.White.copy(0.12f) else Color.Black.copy(0.1f),
-                                focusedContainerColor = if (isDark) Color.White.copy(0.05f) else Color.White,
-                                unfocusedContainerColor = if (isDark) Color.White.copy(0.04f) else Color(0xFFF8F8F8),
-                                cursorColor = accentGreen
-                            ),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() })
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = primaryGreen,
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
                     }
 
-                    // Tab Row
-                    if (state.query.isNotEmpty()) {
-                        ScrollableTabRow(
-                            selectedTabIndex = state.activeTab.ordinal,
-                            containerColor = Color.Transparent,
-                            edgePadding = 16.dp,
-                            indicator = { tabPositions ->
-                                if (state.activeTab.ordinal < tabPositions.size) {
-                                    TabRowDefaults.SecondaryIndicator(
-                                        modifier = Modifier.tabIndicatorOffset(tabPositions[state.activeTab.ordinal]),
-                                        color = accentGreen,
-                                        height = 3.dp
-                                    )
-                                }
-                            },
-                            divider = {}
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Text(
+                        text = "Search",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
+        },
+        bottomBar = {
+            // Floating Glass Bottom Navigation
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                    shape = RoundedCornerShape(32.dp),
+                    elevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Events
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNavigateToEvents() }
                         ) {
-                            listOf("All", "Venues", "Teams").forEachIndexed { idx, label ->
-                                val count = when (idx) {
-                                    1 -> state.venues.size
-                                    2 -> state.teams.size
-                                    else -> totalResults
-                                }
-                                Tab(
-                                    selected = state.activeTab.ordinal == idx,
-                                    onClick = { viewModel.setActiveTab(SearchTab.entries[idx]) },
-                                    text = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                label,
-                                                fontWeight = if (state.activeTab.ordinal == idx)
-                                                    FontWeight.SemiBold else FontWeight.Normal,
-                                                fontSize = 13.sp,
-                                                color = if (state.activeTab.ordinal == idx) accentGreen
-                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            Icon(imageVector = Icons.Default.EmojiEvents, contentDescription = "Events", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Text("Events", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // History
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNavigateToHistory() }
+                        ) {
+                            Icon(imageVector = Icons.Default.AccessTime, contentDescription = "History", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Text("History", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // Home
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNavigateToHome() }
+                        ) {
+                            Icon(imageVector = Icons.Default.Home, contentDescription = "Home", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Text("Home", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // Search (Active Selected Pill)
+                        Box(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(23.dp))
+                                .background(primaryGreen),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(18.dp))
+                                Text("Search", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        // Profile
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNavigateToProfile() }
+                        ) {
+                            Icon(imageVector = Icons.Default.Person, contentDescription = "Profile", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Text("Profile", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // ── 1. SEARCH BAR INPUT ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .border(
+                            width = 1.dp,
+                            color = if (state.searchQuery.isNotEmpty()) primaryGreen.copy(alpha = 0.5f) else Color.Transparent,
+                            shape = RoundedCornerShape(25.dp)
+                        ),
+                    shape = RoundedCornerShape(25.dp),
+                    elevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = primaryGreen,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        TextField(
+                            value = state.searchQuery,
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            placeholder = { Text("Search venues, sports, teams...", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (state.searchQuery.isNotEmpty()) {
+                            Icon(
+                                imageVector = Icons.Default.Cancel,
+                                contentDescription = "Clear",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clickable { viewModel.onSearchQueryChanged("") }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // ── 2. TYPE FILTER CHIPS (All, Venues, Sports, Teams) ──
+            val filterTypes = listOf(
+                Pair("all", "All"),
+                Pair("venues", "Venues"),
+                Pair("sports", "Sports"),
+                Pair("teams", "Teams")
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                filterTypes.forEach { (typeId, typeLabel) ->
+                    val isSel = state.activeFilter == typeId
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (isSel) primaryGreen else if (isDark) Color(0xFF1B2228) else Color(0xFFE2E8F0))
+                            .clickable { viewModel.setFilter(typeId) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = typeLabel,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── 3. CONTENT AREA ──
+            if (state.searchQuery.trim().length < 3) {
+                // DEFAULT UNFILTERED VIEW
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    // Recent Searches Card
+                    if (state.recentSearches.isNotEmpty()) {
+                        item {
+                            GlassCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Recent Searches",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Clear",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.clickable { viewModel.clearRecentSearches() }
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    state.recentSearches.forEach { searchItem ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { viewModel.onSearchQueryChanged(searchItem) }
+                                                .padding(vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.AccessTime,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp)
                                             )
-                                            if (state.hasSearched && count > 0) {
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Box(
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text(
+                                                text = searchItem,
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.CallMade,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Remove",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .clickable { viewModel.removeRecentSearch(searchItem) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Popular Sports Section
+                    item {
+                        Column {
+                            Text(
+                                text = "Popular Sports",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                popularSports.chunked(3).forEach { row ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        row.forEach { sport ->
+                                            GlassCard(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(95.dp)
+                                                    .clickable { viewModel.onSearchQueryChanged(sport.name) },
+                                                shape = RoundedCornerShape(18.dp)
+                                            ) {
+                                                Column(
                                                     modifier = Modifier
-                                                        .clip(RoundedCornerShape(8.dp))
-                                                        .background(accentGreen.copy(alpha = if (state.activeTab.ordinal == idx) 0.2f else 0.1f))
-                                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                        .fillMaxSize()
+                                                        .padding(8.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.Center
                                                 ) {
-                                                    Text("$count", fontSize = 10.sp, color = accentGreen,
-                                                        fontWeight = FontWeight.Bold)
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(42.dp)
+                                                            .clip(RoundedCornerShape(12.dp))
+                                                            .background(primaryGreen.copy(alpha = 0.15f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(text = sport.emoji, fontSize = 20.sp)
+                                                    }
+                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    Text(
+                                                        text = sport.name,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                 }
                                             }
                                         }
                                     }
-                                )
-                            }
-                        }
-                    }
-                    HorizontalDivider(color = if (isDark) Color.White.copy(0.06f) else Color.Black.copy(0.05f))
-                }
-            }
-        }
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            when {
-                // Loading
-                state.isLoading -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(4) { ShimmerSearchCard() }
-                    }
-                }
-
-                // Initial / empty query
-                state.query.isEmpty() -> {
-                    SearchInitialState(accentGreen = accentGreen, isDark = isDark)
-                }
-
-                // No results
-                state.hasSearched && totalResults == 0 -> {
-                    NoSearchResultsState(query = state.query, accentGreen = accentGreen)
-                }
-
-                // Results
-                else -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Venues section
-                        if (filteredVenues.isNotEmpty()) {
-                            item {
-                                SectionHeader(
-                                    title = "Venues",
-                                    count = filteredVenues.size,
-                                    accentGreen = accentGreen
-                                )
-                            }
-                            items(filteredVenues, key = { "venue_${it.id}" }) { venue ->
-                                AnimatedVisibility(
-                                    visible = true,
-                                    enter = fadeIn() + slideInVertically(initialOffsetY = { 20 })
-                                ) {
-                                    SearchVenueCard(
-                                        venue = venue,
-                                        accentGreen = accentGreen,
-                                        isDark = isDark,
-                                        onTap = { onNavigateToVenueDetail(venue.id) }
-                                    )
-                                }
-                            }
-                        }
-
-                        // Teams section
-                        if (filteredTeams.isNotEmpty()) {
-                            item {
-                                SectionHeader(
-                                    title = "Teams",
-                                    count = filteredTeams.size,
-                                    accentGreen = accentGreen
-                                )
-                            }
-                            items(filteredTeams, key = { "team_${it.id}" }) { team ->
-                                AnimatedVisibility(
-                                    visible = true,
-                                    enter = fadeIn() + slideInVertically(initialOffsetY = { 20 })
-                                ) {
-                                    SearchTeamCard(
-                                        team = team,
-                                        accentGreen = accentGreen,
-                                        isDark = isDark
-                                    )
                                 }
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
 
-@Composable
-private fun SectionHeader(title: String, count: Int, accentGreen: Color) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurface)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("($count)", fontSize = 13.sp, color = accentGreen, fontWeight = FontWeight.Medium)
-    }
-}
+                    // Popular Venues Section
+                    item {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "🔥 Popular Venues",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
 
-@Composable
-private fun SearchVenueCard(venue: Venue, accentGreen: Color, isDark: Boolean, onTap: () -> Unit) {
-    val scale = remember { androidx.compose.animation.core.Animatable(1f) }
-    GlassCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale.value)
-            .clickable { onTap() },
-        shape = RoundedCornerShape(18.dp),
-        elevation = 4.dp
-    ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            // Image
-            Box(
-                modifier = Modifier
-                    .width(100.dp)
-                    .height(100.dp)
-                    .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
-            ) {
-                AsyncImage(
-                    model = venue.imageUrl,
-                    contentDescription = venue.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                listOf(Color.Transparent, if (isDark) Color.Black.copy(0.3f) else Color.Transparent)
-                            )
-                        )
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(12.dp)
-            ) {
-                Text(venue.name, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface)
-                Spacer(modifier = Modifier.height(4.dp))
-                if (venue.address.isNotEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null,
-                            tint = accentGreen, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(venue.address, fontSize = 12.sp, maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (venue.rating > 0) {
-                        Icon(Icons.Default.Star, contentDescription = null,
-                            tint = Color(0xFFF59E0B), modifier = Modifier.size(14.dp))
-                        Text(" ${venue.rating}", fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    if (venue.pricePerHour > 0) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(accentGreen.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text("Rs. ${venue.pricePerHour.toInt()}/hr", fontSize = 11.sp,
-                                color = accentGreen, fontWeight = FontWeight.Medium)
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                state.popularVenues.forEach { venueResult ->
+                                    GlassCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { onNavigateToVenueDetail(venueResult.id) },
+                                        shape = RoundedCornerShape(18.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = venueResult.imageUrl?.ifEmpty { null } ?: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400",
+                                                contentDescription = venueResult.title,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(70.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                            )
+
+                                            Spacer(modifier = Modifier.width(12.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = venueResult.title,
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = venueResult.subtitle,
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Star,
+                                                        contentDescription = null,
+                                                        tint = AccentGold,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        text = "%.1f".format(venueResult.rating ?: 5.0f),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        text = "(${venueResult.reviews ?: 2})",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+
+                                            Icon(
+                                                imageVector = Icons.Default.ChevronRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
-                Button(
-                    onClick = onTap,
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = accentGreen)
-                ) {
-                    Text("Book Now", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchTeamCard(team: TeamSearchResult, accentGreen: Color, isDark: Boolean) {
-    GlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        elevation = 3.dp
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Avatar
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(accentGreen.copy(0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!team.logoUrl.isNullOrEmpty()) {
-                    AsyncImage(model = team.logoUrl, contentDescription = team.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clip(CircleShape))
-                } else {
-                    Text("⚽", fontSize = 22.sp)
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(team.name, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurface)
-                if (!team.sport.isNullOrEmpty()) {
-                    Spacer(modifier = Modifier.height(3.dp))
+            } else {
+                // ACTIVE SEARCH RESULTS VIEW
+                if (state.isLoading) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(accentGreen.copy(0.1f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(team.sport, fontSize = 11.sp, color = accentGreen)
+                        CircularProgressIndicator(color = primaryGreen)
+                    }
+                } else if (state.searchResults.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.SearchOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "No results found for \"${state.searchQuery}\"",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Try searching with a different term or category",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 80.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(state.searchResults, key = { it.id }) { item ->
+                            when (item.type) {
+                                SearchResultType.SPORT -> {
+                                    // Sport Result Card matching Screenshot 2
+                                    GlassCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                if (!item.venueId.isNullOrBlank()) {
+                                                    onNavigateToSportDetail(item.id, item.venueId)
+                                                } else {
+                                                    onNavigateToVenueDetail(item.id.replace("sport-", ""))
+                                                }
+                                            },
+                                        shape = RoundedCornerShape(18.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = item.imageUrl?.ifEmpty { null } ?: "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=400",
+                                                contentDescription = item.title,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(76.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                            )
+
+                                            Spacer(modifier = Modifier.width(12.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = item.title,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+
+                                                Spacer(modifier = Modifier.height(2.dp))
+
+                                                Text(
+                                                    text = item.subtitle.ifEmpty { item.venueName ?: "Venue" },
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+
+                                                Spacer(modifier = Modifier.height(6.dp))
+
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    // Green Price Tag
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .background(primaryGreen.copy(alpha = 0.12f))
+                                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "Rs. %.2f/hr".format(item.price ?: 2000.0),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = primaryGreen
+                                                        )
+                                                    }
+
+                                                    // Availability Badge Pill
+                                                    val avail = item.isAvailable ?: true
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .background(if (avail) primaryGreen.copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f))
+                                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = if (avail) "Available" else "Booked Out",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (avail) primaryGreen else Color(0xFFEF4444)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Icon(
+                                                imageVector = Icons.Default.ChevronRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                SearchResultType.VENUE -> {
+                                    GlassCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { onNavigateToVenueDetail(item.id) },
+                                        shape = RoundedCornerShape(18.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = item.imageUrl?.ifEmpty { null } ?: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400",
+                                                contentDescription = item.title,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(76.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                            )
+
+                                            Spacer(modifier = Modifier.width(12.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = item.title,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = item.subtitle,
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Star,
+                                                        contentDescription = null,
+                                                        tint = AccentGold,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        text = "%.1f".format(item.rating ?: 5.0f),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        text = "(${item.reviews ?: 2})",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+
+                                            Icon(
+                                                imageVector = Icons.Default.ChevronRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                SearchResultType.TEAM -> {
+                                    GlassCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { onNavigateToTeamDetail(item.id) },
+                                        shape = RoundedCornerShape(18.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(60.dp)
+                                                    .clip(CircleShape)
+                                                    .background(primaryGreen.copy(alpha = 0.2f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text("⚽", fontSize = 24.sp)
+                                            }
+
+                                            Spacer(modifier = Modifier.width(12.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = item.title,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = item.subtitle,
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+
+                                            Button(
+                                                onClick = { onNavigateToTeamDetail(item.id) },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                            ) {
+                                                Text("View Team", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                if (!team.location.isNullOrEmpty()) {
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
-                        Text(" ${team.location}", fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+            }
+        }
+    }
+}
+
+private fun requestDeviceLocation(context: Context, viewModel: SearchViewModel) {
+    try {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (locationManager == null) return
+        val isGps = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val isNet = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+
+        var loc: Location? = null
+        if (isGps) loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+        if (loc == null && isNet) loc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+        if (loc != null) {
+            viewModel.updateUserLocation(loc.latitude, loc.longitude)
+        } else {
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    viewModel.updateUserLocation(location.latitude, location.longitude)
+                    locationManager.removeUpdates(this)
                 }
+                override fun onStatusChanged(p0: String?, p1: Int, p2: Bundle?) {}
+                override fun onProviderEnabled(p0: String) {}
+                override fun onProviderDisabled(p0: String) {}
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Group, contentDescription = null,
-                    tint = accentGreen, modifier = Modifier.size(16.dp))
-                Text("${team.memberCount}", fontSize = 11.sp, color = accentGreen,
-                    fontWeight = FontWeight.SemiBold)
-            }
+            if (isNet) locationManager.requestSingleUpdate(LocationManager.NETWORK_PROVIDER, listener, null)
+            else if (isGps) locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, listener, null)
         }
-    }
-}
-
-@Composable
-private fun SearchInitialState(accentGreen: Color, isDark: Boolean) {
-    val popularSearches = listOf("Football", "Cricket", "Badminton", "Tennis", "Basketball")
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
-    ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Popular Searches", fontWeight = FontWeight.Bold, fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurface)
-        Spacer(modifier = Modifier.height(14.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(popularSearches) { tag ->
-                FilterChip(
-                    selected = false,
-                    onClick = {},
-                    label = { Text(tag, fontSize = 13.sp) },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = accentGreen.copy(0.1f),
-                        labelColor = accentGreen
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = false,
-                        borderColor = accentGreen.copy(0.2f)
-                    )
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(40.dp))
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.SearchOff, contentDescription = null,
-                    tint = accentGreen.copy(0.35f), modifier = Modifier.size(64.dp))
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("Search for venues, teams & more",
-                    fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-@Composable
-private fun NoSearchResultsState(query: String, accentGreen: Color) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(Icons.Default.SearchOff, contentDescription = null,
-            tint = accentGreen.copy(0.4f), modifier = Modifier.size(72.dp))
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("No results for \"$query\"", fontWeight = FontWeight.SemiBold, fontSize = 17.sp,
-            color = MaterialTheme.colorScheme.onSurface)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Try a different keyword or sport name",
-            fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun ShimmerSearchCard() {
-    GlassCard(
-        modifier = Modifier.fillMaxWidth().height(100.dp),
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Row {
-            ShimmerSkeleton(modifier = Modifier.width(100.dp).fillMaxHeight()
-                .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp)))
-            Column(modifier = Modifier.weight(1f).padding(12.dp)) {
-                ShimmerSkeleton(modifier = Modifier.fillMaxWidth(0.7f).height(16.dp)
-                    .clip(RoundedCornerShape(4.dp)))
-                Spacer(modifier = Modifier.height(8.dp))
-                ShimmerSkeleton(modifier = Modifier.fillMaxWidth(0.9f).height(12.dp)
-                    .clip(RoundedCornerShape(4.dp)))
-                Spacer(modifier = Modifier.height(8.dp))
-                ShimmerSkeleton(modifier = Modifier.fillMaxWidth(0.4f).height(12.dp)
-                    .clip(RoundedCornerShape(4.dp)))
-            }
-        }
-    }
+    } catch (_: Exception) {}
 }

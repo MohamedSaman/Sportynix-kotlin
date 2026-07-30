@@ -5,157 +5,151 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.JsonElement
-import com.sportynix.app.data.remote.api.SportsApiService
-import com.sportynix.app.data.remote.api.VenueApiService
-import com.sportynix.app.data.remote.dto.VenueDto
-import com.sportynix.app.domain.model.Venue
+import com.sportynix.app.core.network.ApiResult
+import com.sportynix.app.domain.model.SearchResult
+import com.sportynix.app.domain.repository.SearchRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SearchTab { ALL, VENUES, TEAMS }
-
-data class TeamSearchResult(
-    val id: String,
-    val name: String,
-    val sport: String?,
-    val location: String?,
-    val logoUrl: String?,
-    val memberCount: Int = 0
-)
-
 data class SearchUiState(
-    val query: String = "",
-    val venues: List<Venue> = emptyList(),
-    val teams: List<TeamSearchResult> = emptyList(),
+    val searchQuery: String = "",
+    val activeFilter: String = "all", // "all", "venues", "sports", "teams"
+    val activeSportFilter: String = "all",
+    val sortBy: String = "relevance", // "relevance", "distance", "rating", "price"
+    val recentSearches: List<String> = emptyList(),
+    val popularVenues: List<SearchResult> = emptyList(),
+    val searchResults: List<SearchResult> = emptyList(),
+    val userLocation: Pair<Double, Double>? = null,
     val isLoading: Boolean = false,
-    val activeTab: SearchTab = SearchTab.ALL,
-    val errorMessage: String? = null,
-    val hasSearched: Boolean = false
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val venueApiService: VenueApiService,
-    private val sportsApiService: SportsApiService
+    private val searchRepository: SearchRepository
 ) : ViewModel() {
 
     var state by mutableStateOf(SearchUiState())
         private set
 
-    private var debounceJob: Job? = null
+    private var searchJob: Job? = null
 
-    fun onQueryChanged(query: String) {
-        state = state.copy(query = query)
-        debounceJob?.cancel()
-        if (query.isBlank()) {
-            state = state.copy(venues = emptyList(), teams = emptyList(), hasSearched = false, isLoading = false)
+    init {
+        observeRecentSearches()
+        loadPopularVenues()
+    }
+
+    private fun observeRecentSearches() {
+        viewModelScope.launch {
+            searchRepository.getRecentSearches().collectLatest { list ->
+                state = state.copy(recentSearches = list)
+            }
+        }
+    }
+
+    fun loadPopularVenues() {
+        viewModelScope.launch {
+            val loc = state.userLocation
+            when (val result = searchRepository.fetchPopularVenues(loc?.first, loc?.second)) {
+                is ApiResult.Success -> {
+                    state = state.copy(popularVenues = result.data)
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun updateUserLocation(lat: Double, lon: Double) {
+        state = state.copy(userLocation = Pair(lat, lon))
+        loadPopularVenues()
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        state = state.copy(searchQuery = query)
+        searchJob?.cancel()
+
+        if (query.trim().isEmpty()) {
+            state = state.copy(searchResults = emptyList(), isLoading = false, errorMessage = null)
             return
         }
-        debounceJob = viewModelScope.launch {
+
+        if (query.trim().length < 3) {
+            state = state.copy(searchResults = emptyList(), isLoading = false, errorMessage = null)
+            return
+        }
+
+        searchJob = viewModelScope.launch {
             delay(300)
-            performSearch(query)
+            executeSearch()
         }
     }
 
-    fun setActiveTab(tab: SearchTab) {
-        state = state.copy(activeTab = tab)
+    fun setFilter(filter: String) {
+        if (state.activeFilter == filter) return
+        state = state.copy(activeFilter = filter)
+        if (state.searchQuery.trim().length >= 3) {
+            executeSearch()
+        }
     }
 
-    private suspend fun performSearch(query: String) {
-        state = state.copy(isLoading = true, errorMessage = null)
-        var fetchedVenues = emptyList<Venue>()
-        var fetchedTeams = emptyList<TeamSearchResult>()
-
-        // Search venues
-        try {
-            val venueResp = venueApiService.getVenues(search = query)
-            if (venueResp.isSuccessful) {
-                fetchedVenues = parseVenuesFromJson(venueResp.body())
-            }
-        } catch (_: Exception) {}
-
-        // Search teams
-        try {
-            val teamResp = sportsApiService.getTeams(search = query)
-            if (teamResp.isSuccessful) {
-                fetchedTeams = parseTeamsFromJson(teamResp.body())
-            }
-        } catch (_: Exception) {}
-
-        state = state.copy(
-            venues = fetchedVenues,
-            teams = fetchedTeams,
-            isLoading = false,
-            hasSearched = true
-        )
+    fun setSportFilter(sport: String) {
+        state = state.copy(activeSportFilter = sport)
+        if (state.searchQuery.trim().length >= 3) {
+            executeSearch()
+        }
     }
 
-    private fun parseVenuesFromJson(element: JsonElement?): List<Venue> {
-        if (element == null || element.isJsonNull) return emptyList()
-        val gson = com.google.gson.Gson()
-        return try {
-            val dtoList = when {
-                element.isJsonArray -> {
-                    gson.fromJson(element.asJsonArray, Array<VenueDto>::class.java).toList()
-                }
-                element.isJsonObject -> {
-                    val obj = element.asJsonObject
-                    val arr = obj.get("results") ?: obj.get("data") ?: obj.get("venues")
-                    if (arr != null && arr.isJsonArray) {
-                        gson.fromJson(arr.asJsonArray, Array<VenueDto>::class.java).toList()
-                    } else emptyList()
-                }
-                else -> emptyList()
-            }
-            dtoList.map { dto ->
-                Venue(
-                    id = dto.id,
-                    name = dto.name,
-                    description = dto.description ?: "",
-                    sportType = dto.sportType ?: "",
-                    location = dto.location ?: "",
-                    address = dto.address ?: "",
-                    pricePerHour = dto.pricePerHour ?: 0.0,
-                    rating = dto.rating ?: 0f,
-                    reviewCount = dto.reviewCount ?: 0,
-                    imageUrl = dto.imageUrl ?: "",
-                    imageUrls = dto.imageUrlsList ?: emptyList(),
-                    amenities = dto.amenities ?: emptyList(),
-                    isFeatured = dto.isFeatured ?: false
-                )
-            }
-        } catch (_: Exception) { emptyList() }
+    fun setSortBy(sort: String) {
+        state = state.copy(sortBy = sort)
+        if (state.searchQuery.trim().length >= 3) {
+            executeSearch()
+        }
     }
 
-    private fun parseTeamsFromJson(element: JsonElement?): List<TeamSearchResult> {
-        if (element == null || element.isJsonNull) return emptyList()
-        return try {
-            val gson = com.google.gson.Gson()
-            val arr = when {
-                element.isJsonArray -> element.asJsonArray
-                element.isJsonObject -> {
-                    val obj = element.asJsonObject
-                    (obj.get("results") ?: obj.get("data") ?: obj.get("teams"))?.asJsonArray
-                }
-                else -> null
-            } ?: return emptyList()
+    private fun executeSearch() {
+        val q = state.searchQuery.trim()
+        if (q.length < 3) return
 
-            arr.mapNotNull { el ->
-                if (!el.isJsonObject) return@mapNotNull null
-                val obj = el.asJsonObject
-                TeamSearchResult(
-                    id = obj.get("id")?.asString ?: return@mapNotNull null,
-                    name = obj.get("name")?.asString ?: "",
-                    sport = obj.get("sport")?.asString ?: obj.get("sport_name")?.asString,
-                    location = obj.get("location")?.asString ?: obj.get("city")?.asString,
-                    logoUrl = obj.get("logo")?.asString ?: obj.get("logo_url")?.asString,
-                    memberCount = obj.get("member_count")?.asInt ?: 0
-                )
+        viewModelScope.launch {
+            state = state.copy(isLoading = true, errorMessage = null)
+            val loc = state.userLocation
+            val result = searchRepository.search(
+                query = q,
+                activeFilter = state.activeFilter,
+                sportFilter = state.activeSportFilter,
+                sortBy = state.sortBy,
+                latitude = loc?.first,
+                longitude = loc?.second
+            )
+
+            when (result) {
+                is ApiResult.Success -> {
+                    state = state.copy(searchResults = result.data, isLoading = false, errorMessage = null)
+                    searchRepository.addRecentSearch(q)
+                }
+                is ApiResult.Error -> {
+                    state = state.copy(isLoading = false, errorMessage = result.message)
+                }
+                else -> {
+                    state = state.copy(isLoading = false)
+                }
             }
-        } catch (_: Exception) { emptyList() }
+        }
+    }
+
+    fun removeRecentSearch(query: String) {
+        viewModelScope.launch {
+            searchRepository.removeRecentSearch(query)
+        }
+    }
+
+    fun clearRecentSearches() {
+        viewModelScope.launch {
+            searchRepository.clearRecentSearches()
+        }
     }
 }

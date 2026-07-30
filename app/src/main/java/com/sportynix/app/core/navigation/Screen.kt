@@ -22,10 +22,23 @@ sealed class Screen(val route: String) {
         fun createRoute(sportId: String, venueId: String) = "sport_detail/$sportId/$venueId"
     }
     object VenueSlotPicker : Screen("venue_slot_picker/{venueId}") {
-        fun createRoute(venueId: String) = "venue_slot_picker/$venueId"
+        fun createRoute(venueId: String) = "booking/$venueId/1"
     }
-    object BookingSummary : Screen("booking_summary/{venueId}/{slotId}/{date}") {
-        fun createRoute(venueId: String, slotId: String, date: String) = "booking_summary/$venueId/$slotId/$date"
+    object Booking : Screen("booking/{venueId}/{sportId}") {
+        fun createRoute(venueId: String, sportId: String) = "booking/$venueId/$sportId"
+    }
+    object BookingSummary : Screen("booking_summary/{venueId}/{sportId}/{date}/{slotIds}/{bookingType}?selectedDays={selectedDays}") {
+        fun createRoute(venueId: String, sportId: String, date: String, slotIds: String, bookingType: String = "Normal", selectedDays: String = "") =
+            "booking_summary/$venueId/$sportId/$date/$slotIds/$bookingType?selectedDays=$selectedDays"
+    }
+    object BookingAdvancePaymentPreview : Screen("booking_advance_payment_preview/{orderId}/{amount}?checkoutUrl={checkoutUrl}") {
+        fun createRoute(orderId: String, amount: Double, checkoutUrl: String) =
+            "booking_advance_payment_preview/$orderId/$amount?checkoutUrl=${java.net.URLEncoder.encode(checkoutUrl, "UTF-8")}"
+    }
+    object BookingConfirmation : Screen("booking_confirmation")
+    object BookingCancellationReview : Screen("booking_cancellation_review/{bookingId}/{cancellationMode}") {
+        fun createRoute(bookingId: String, cancellationMode: String = "single") =
+            "booking_cancellation_review/$bookingId/$cancellationMode"
     }
     object BookingHistory : Screen("booking_history")
     object BookingDetail : Screen("booking_detail/{bookingId}") {

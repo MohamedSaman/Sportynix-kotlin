@@ -9,9 +9,9 @@ class CreateBookingUseCase @Inject constructor(
     private val repository: BookingRepository
 ) {
     suspend operator fun invoke(venueId: String, slotId: String, date: String): ApiResult<Booking> {
-        if (venueId.isBlank() || slotId.isBlank() || date.isBlank()) {
+        if (venueId.isBlank() || date.isBlank()) {
             return ApiResult.Error(message = "Invalid booking details selected")
         }
-        return repository.createBooking(venueId, slotId, date)
+        return repository.createSimpleBooking(venueId, slotId, date)
     }
 }

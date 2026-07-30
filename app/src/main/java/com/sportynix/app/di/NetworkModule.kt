@@ -1,5 +1,7 @@
 package com.sportynix.app.di
 
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.sportynix.app.BuildConfig
 import com.sportynix.app.core.network.AuthInterceptor
 import com.sportynix.app.core.network.TokenAuthenticator
@@ -24,6 +26,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson {
+        return GsonBuilder().create()
+    }
 
     @Provides
     @Singleton
@@ -56,11 +64,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideRetrofit(okHttpClient: OkHttpClient, gson: Gson): Retrofit {
         return Retrofit.Builder()
             .baseUrl(BuildConfig.BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
     }
 
@@ -128,6 +136,18 @@ object NetworkModule {
     @Singleton
     fun provideAuctionApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.AuctionApiService {
         return retrofit.create(com.sportynix.app.data.remote.api.AuctionApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAnnouncementApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.AnnouncementApiService {
+        return retrofit.create(com.sportynix.app.data.remote.api.AnnouncementApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSearchApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.SearchApiService {
+        return retrofit.create(com.sportynix.app.data.remote.api.SearchApiService::class.java)
     }
 }
 

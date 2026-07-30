@@ -17,373 +17,308 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
+import com.sportynix.app.data.remote.dto.QuoteResponseDto
 import com.sportynix.app.presentation.components.GlassCard
-import com.sportynix.app.presentation.theme.*
-import kotlinx.coroutines.flow.collectLatest
+import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 
 @Composable
 fun BookingSummaryScreen(
     venueId: String,
-    slotId: String,
+    sportId: String,
     date: String,
+    slotIds: String,
+    bookingType: String = "Normal",
+    selectedDays: String = "",
     onNavigateBack: () -> Unit,
-    onNavigateToPayment: (bookingId: String, amount: Double) -> Unit,
+    onNavigateToPaymentPreview: (checkoutUrl: String, orderId: String, amount: Double) -> Unit,
+    onNavigateToConfirmation: () -> Unit,
     viewModel: BookingViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
     val isDark = isSystemInDarkTheme()
-    val accentGreen = if (isDark) NeonGreen else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
 
-    val totalAmount = 400.0
+    var selectedPaymentOption by remember { mutableStateOf("advance") } // "advance" or "full"
+    var isSubmitting by remember { mutableStateOf(false) }
 
-    LaunchedEffect(key1 = true) {
-        viewModel.effect.collectLatest { effect ->
-            when (effect) {
-                is BookingUiEffect.NavigateToPayment -> onNavigateToPayment(effect.bookingId, effect.amount)
-            }
-        }
+    LaunchedEffect(venueId, sportId, date, slotIds, selectedPaymentOption) {
+        viewModel.fetchQuote(venueId, sportId, date, slotIds, bookingType, selectedDays, selectedPaymentOption)
     }
 
+    val quote = state.quoteResponse ?: QuoteResponseDto(
+        bookingTotal = "800.00",
+        paymentRequired = true,
+        advanceRequired = true,
+        advanceAmount = "400.00",
+        gatewayAmount = "400.00",
+        remainingBalance = "400.00",
+        pointsDiscount = "0.00",
+        acceptedPoints = 0,
+        paymentOption = selectedPaymentOption,
+        paymentMode = "advance_or_full",
+        allowedPaymentOptions = listOf("advance", "full")
+    )
+
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(if (isDark) Color(0xFF0D1B2A) else Color.White)
-                    .statusBarsPadding()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(60.dp)
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onNavigateBack) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(if (isDark) Color(0xFF1E262C) else Color(0xFFE2E8F0))
+                            .clickable { onNavigateBack() },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
+                            tint = primaryGreen,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.width(14.dp))
                     Text(
                         text = "Booking Summary",
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 }
-                HorizontalDivider(color = if (isDark) Color.White.copy(0.06f) else Color.Black.copy(0.05f))
             }
         },
         bottomBar = {
-            Surface(
-                color = if (isDark) Color(0xFF0D1B2A) else Color.White,
-                tonalElevation = 8.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Row(
+                Button(
+                    onClick = {
+                        isSubmitting = true
+                        viewModel.confirmBookingOrCheckout(
+                            venueId = venueId,
+                            sportId = sportId,
+                            date = date,
+                            slotIds = slotIds,
+                            bookingType = bookingType,
+                            selectedDays = selectedDays,
+                            paymentOption = selectedPaymentOption,
+                            onPaymentCheckoutReady = { url, orderId, amt ->
+                                isSubmitting = false
+                                onNavigateToPaymentPreview(url, orderId, amt)
+                            },
+                            onDirectConfirmationReady = {
+                                isSubmitting = false
+                                onNavigateToConfirmation()
+                            }
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .height(50.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
+                    enabled = !isSubmitting
                 ) {
-                    // Back button
-                    Button(
-                        onClick = onNavigateBack,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isDark) Color.White.copy(0.1f) else Color.Black.copy(0.08f),
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                    if (isSubmitting) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
+                    } else {
+                        Text(
+                            text = if (quote.paymentRequired == true) "Proceed to Payment" else "Confirm Booking",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Back", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                    }
-
-                    // Confirm Booking button
-                    Button(
-                        onClick = { viewModel.confirmBooking(venueId, slotId, date) },
-                        enabled = !state.isLoading,
-                        modifier = Modifier
-                            .weight(2f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = accentGreen)
-                    ) {
-                        if (state.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Confirm Booking", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                            }
-                        }
                     }
                 }
             }
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── 1. SPORT IMAGE BANNER CARD ──
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-                    .clip(RoundedCornerShape(20.dp))
-            ) {
-                AsyncImage(
-                    model = "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80",
-                    contentDescription = "Sport Banner",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))
-                            )
-                        )
-                )
-
-                // Sport Title Tag
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SportsBasketball,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Badminton",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color.White
-                    )
-                }
-            }
-
-            // ── 2. BOOKING DETAILS GLASS CARD ──
+            // ── 1. BOOKING OVERVIEW CARD ──
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                elevation = 4.dp
+                shape = RoundedCornerShape(20.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Header
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(accentGreen.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SportsCricket,
-                                contentDescription = null,
-                                tint = accentGreen,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Booking Details",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    BookingDetailRow("Venue", "Sportynix sport's complex")
-                    BookingDetailRow("Sport", "Badminton")
-                    BookingDetailRow("Booking Type", "Normal", isHighlight = true, highlightColor = accentGreen)
-                    BookingDetailRow("Date", date.ifEmpty { "Jul 23, 2026" })
-                    BookingDetailRow("Booked By", "Muhammed Nashan", isBold = true)
-                    BookingDetailRow("Email", "mnashan.dev@gmail.com")
-                    BookingDetailRow("Contact No", "0782960224")
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = if (isDark) Color.White.copy(0.08f) else Color.Black.copy(0.06f))
-
-                    // Selected Slots
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Selected Slots",
+                        text = "Booking Overview",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-
+                    Spacer(modifier = Modifier.height(10.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Slot 1    05:00 PM - 06:00 PM",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Rs. 400.00",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Text("Date", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(date, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Total Row
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Total",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Rs. ${totalAmount.toInt()}.00",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp,
-                            color = accentGreen
-                        )
+                        Text("Booking Type", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(bookingType, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
+                    }
+                    if (selectedDays.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Recurring Days", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(selectedDays, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 }
             }
 
-            // ── 3. TERMS & CONDITIONS INFO CARD ──
+            // ── 2. PAYMENT BREAKDOWN CARD ──
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(20.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF0EA5E9).copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = Color(0xFF0EA5E9),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Terms & Conditions",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Price & Quote Breakdown",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Booking Price", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("LKR ${quote.bookingTotal ?: "0.00"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Advance Required", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("LKR ${quote.advanceAmount ?: "0.00"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Remaining Balance (at Venue)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("LKR ${quote.remainingBalance ?: "0.00"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
 
-                    Column(
-                        modifier = Modifier.padding(start = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ConditionBulletItem("Payment is non-refundable")
-                        ConditionBulletItem("Arrive 15 minutes before your slot")
-                        ConditionBulletItem("Venue rules must be followed")
+                        Text("Online Gateway Amount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("LKR ${quote.gatewayAmount ?: "0.00"}", fontSize = 18.sp, fontWeight = FontWeight.Black, color = primaryGreen)
+                    }
+                }
+            }
+
+            // ── 3. PAYMENT OPTION SELECTOR ──
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Select Payment Option",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selectedPaymentOption == "advance") primaryGreen.copy(alpha = 0.12f) else Color.Transparent)
+                            .border(
+                                width = 1.dp,
+                                color = if (selectedPaymentOption == "advance") primaryGreen else MaterialTheme.colorScheme.outlineVariant,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .clickable { selectedPaymentOption = "advance" }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedPaymentOption == "advance",
+                            onClick = { selectedPaymentOption = "advance" },
+                            colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Pay Advance Only", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Pay LKR ${quote.advanceAmount ?: "400.00"} now online, balance at venue.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selectedPaymentOption == "full") primaryGreen.copy(alpha = 0.12f) else Color.Transparent)
+                            .border(
+                                width = 1.dp,
+                                color = if (selectedPaymentOption == "full") primaryGreen else MaterialTheme.colorScheme.outlineVariant,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .clickable { selectedPaymentOption = "full" }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedPaymentOption == "full",
+                            onClick = { selectedPaymentOption = "full" },
+                            colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Pay Full Amount", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Pay LKR ${quote.bookingTotal ?: "800.00"} now online.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun BookingDetailRow(
-    label: String,
-    value: String,
-    isBold: Boolean = false,
-    isHighlight: Boolean = false,
-    highlightColor: Color = Color.Unspecified
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            fontSize = 13.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            fontSize = 13.sp,
-            fontWeight = if (isBold || isHighlight) FontWeight.Bold else FontWeight.Medium,
-            color = if (isHighlight) highlightColor else MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
-
-@Composable
-private fun ConditionBulletItem(text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("• ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
