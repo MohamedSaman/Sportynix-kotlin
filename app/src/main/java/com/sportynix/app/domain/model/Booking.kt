@@ -1,39 +1,72 @@
 package com.sportynix.app.domain.model
 
 data class Booking(
-    val id: String,
-    val venueId: String,
-    val venueName: String,
-    val venueImageUrl: String?,
-    val sportName: String = "Badminton",
-    val slotTime: String,
-    val endTime: String? = null,
-    val bookingDate: String,
-    val totalPrice: Double,
-    val status: BookingStatus,
-    val financialStatus: String? = null,
-    val paymentStatus: String? = null,
-    val paymentAmount: Double? = null,
-    val qrCodeUrl: String? = null,
-    val bookingReference: String? = null,
-    val teamId: Long? = null,
-    val teamName: String? = null,
-    val teamMembersCount: Int = 0,
-    val isPermanent: Boolean = false,
-    val createdAt: String = ""
+    val id: Int,
+    val complexName: String,
+    val sport: String,
+    val courtName: String,
+    val teamName: String,
+    val memberCount: Int,
+    val teamId: Int?,
+    val playDateStart: String,
+    val playDateEnd: String,
+    val timeSlot: String,
+    val duration: String,
+    val location: String,
+    val price: String,
+    val slotCount: Int,
+    val bookingId: Int,
+    val bookedDate: String,
+    val status: String,
+    val isPermanent: Boolean,
+    val permanentSourceId: Int?,
+    val imageURL: String,
+    val qrCode: Boolean,
+    val qrCodeURL: String? = null,
+    val venueId: Int?,
+    val sportId: Int?,
+    val reviewId: Int?,
+    val reviewRating: Double?,
+    val isChallengeBooking: Boolean,
+    val opponentTeamName: String?,
+    val opponentMemberCount: Int?,
+    val userId: Int?,
+    val canCancel: Boolean,
+    val createdAt: String?
 ) {
-    val venueImage: String? get() = venueImageUrl
-    val date: String get() = bookingDate
-    val time: String get() = slotTime
-    val price: Double get() = totalPrice
+    // Backwards-compatibility helper properties
+    val venueIdString: String get() = venueId?.toString() ?: ""
+    val venueName: String get() = complexName
+    val venueImageUrl: String? get() = imageURL.ifEmpty { null }
+    val sportName: String get() = sport
+    val slotTime: String get() = timeSlot
+    val bookingDate: String get() = playDateStart
+    val totalPrice: Double get() {
+        val cleaned = price.replace("LKR", "").replace("Rs.", "").replace("Rs", "").replace(",", "").trim()
+        return cleaned.toDoubleOrNull() ?: 0.0
+    }
 }
 
-enum class BookingStatus {
-    PENDING,
-    CONFIRMED,
-    CANCELLED,
-    COMPLETED
+enum class BookingStatus(val value: String) {
+    ONGOING("Ongoing"),
+    UPCOMING("Upcoming"),
+    COMPLETED("Completed"),
+    CANCELLED("Cancelled"),
+    NO_SHOW("No-Show");
+
+    companion object {
+        fun fromString(statusStr: String?): BookingStatus {
+            return when (statusStr?.lowercase()?.trim()) {
+                "playing" -> ONGOING
+                "confirmed", "upcoming", "pending" -> UPCOMING
+                "completed" -> COMPLETED
+                "no-show", "noshow" -> NO_SHOW
+                else -> CANCELLED
+            }
+        }
+    }
 }
+
 
 data class QuoteBreakdown(
     val bookingTotal: String,

@@ -7,52 +7,75 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sportynix.app.data.remote.api.UserApiService
-import com.sportynix.app.data.remote.dto.PhoneOtpVerifyRequestDto
-import com.sportynix.app.data.remote.dto.PhoneVerifyRequestDto
-import com.sportynix.app.data.remote.dto.UpdateProfileRequestDto
 import com.sportynix.app.data.mapper.toDomain
+import com.sportynix.app.data.repository.ProfileRepository
 import com.sportynix.app.domain.model.User
-import com.sportynix.app.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.toRequestBody
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import javax.inject.Inject
 
 data class EditProfileUiState(
     val user: User? = null,
+    val username: String = "",
     val firstName: String = "",
     val lastName: String = "",
-    val username: String = "",
-    val bio: String = "",
+    val gender: String = "prefer_not_to_say",
+    val dobDate: Date = Date(946684800000L), // Jan 1 2000
+    val email: String = "",
     val phone: String = "",
-    val location: String = "",
+    val bio: String = "",
+    val address: String = "",
+    val homeDistrict: String = "",
+    val homeCity: String = "",
+    val homeCityId: Int? = null,
+    val homeProvince: String = "",
+    val selectedSports: Set<String> = emptySet(),
+    val availability: String = "both",
+    val isPublicProfile: Boolean = true,
+    val isShowContact: Boolean = false,
+    val cricketPreferredVariant: String = "all",
+    val cricketPrimaryRole: String = "",
+    val cricketPlayingPosition: String = "",
+    val cricketBattingStyle: String = "",
+    val cricketBowlingStyle: String = "",
+    val cricketJerseyNumber: String = "",
+
+    val imageUri: Uri? = null,
+    val imageWasChanged: Boolean = false,
+    val imageWasRemoved: Boolean = false,
+
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
-    val isUploadingAvatar: Boolean = false,
-    val successMessage: String? = null,
-    val errorMessage: String? = null,
-    // Phone verify flow
-    val showPhoneVerifySheet: Boolean = false,
-    val phoneVerifyChallengeId: Int? = null,
+    val isSendingEmailLink: Boolean = false,
+    val isSendingPhoneOtp: Boolean = false,
+    val isVerifyingPhoneOtp: Boolean = false,
+    val phoneChallengeId: Int? = null,
     val phoneOtp: String = "",
-    val isVerifyingPhone: Boolean = false,
-    val phoneVerifyError: String? = null
+
+    val bannerMessage: String? = null,
+    val errorMessage: String? = null,
+
+    val showPhoneModal: Boolean = false,
+    val showDobPicker: Boolean = false,
+    val showLocationPicker: Boolean = false,
+    val showRemoveConfirmation: Boolean = false
 )
 
 sealed class EditProfileEffect {
     object NavigateBack : EditProfileEffect()
-    data class ShowSnackbar(val message: String) : EditProfileEffect()
+    data class ShowToast(val message: String) : EditProfileEffect()
 }
 
 @HiltViewModel
 class EditProfileViewModel @Inject constructor(
-    private val userApiService: UserApiService,
-    private val authRepository: AuthRepository
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
     var state by mutableStateOf(EditProfileUiState())
@@ -61,148 +84,281 @@ class EditProfileViewModel @Inject constructor(
     private val _effect = MutableSharedFlow<EditProfileEffect>()
     val effect = _effect.asSharedFlow()
 
-    init { loadUser() }
-
-    private fun loadUser() {
-        viewModelScope.launch {
-            state = state.copy(isLoading = true)
-            try {
-                val resp = userApiService.getCurrentUser()
-                if (resp.isSuccessful && resp.body() != null) {
-                    val dto = resp.body()!!
-                    val user = dto.toDomain()
-                    state = state.copy(
-                        user = user,
-                        firstName = user.firstName,
-                        lastName = user.lastName,
-                        username = user.username,
-                        bio = user.bio ?: "",
-                        phone = user.phone,
-                        isLoading = false
-                    )
-                }
-            } catch (e: Exception) {
-                state = state.copy(isLoading = false, errorMessage = e.message)
-            }
-        }
+    init {
+        loadProfile()
     }
 
-    fun onFirstNameChanged(v: String) { state = state.copy(firstName = v) }
-    fun onLastNameChanged(v: String) { state = state.copy(lastName = v) }
-    fun onUsernameChanged(v: String) { state = state.copy(username = v) }
-    fun onBioChanged(v: String) { state = state.copy(bio = v) }
-    fun onPhoneChanged(v: String) { state = state.copy(phone = v) }
-    fun onLocationChanged(v: String) { state = state.copy(location = v) }
-    fun onPhoneOtpChanged(v: String) { state = state.copy(phoneOtp = v) }
-
-    fun saveProfile() {
+    fun loadProfile() {
         viewModelScope.launch {
-            state = state.copy(isSaving = true, errorMessage = null)
-            try {
-                val request = UpdateProfileRequestDto(
-                    firstName = state.firstName.ifBlank { null },
-                    lastName = state.lastName.ifBlank { null },
-                    username = state.username.ifBlank { null },
-                    bio = state.bio.ifBlank { null },
-                    phoneNumber = state.phone.ifBlank { null },
-                    location = state.location.ifBlank { null }
+            state = state.copy(isLoading = true, errorMessage = null)
+            val result = profileRepository.fetchProfile()
+            result.onSuccess { dto ->
+                val u = dto.toDomain()
+                val parsedDob = u.dateOfBirth?.let { parseDobDate(it) } ?: Date(946684800000L)
+                state = state.copy(
+                    user = u,
+                    username = u.username,
+                    firstName = u.firstName,
+                    lastName = u.lastName,
+                    gender = u.gender,
+                    dobDate = parsedDob,
+                    email = u.email,
+                    phone = u.phone,
+                    bio = u.bio.orEmpty(),
+                    address = u.address,
+                    homeDistrict = u.homeDistrict,
+                    homeCity = u.homeCity,
+                    homeCityId = u.homeCityId,
+                    homeProvince = u.homeProvinceName,
+                    selectedSports = u.sportsPreferences.toSet(),
+                    availability = u.availability,
+                    isPublicProfile = u.isPublicProfile,
+                    isShowContact = u.isShowContact,
+                    cricketPreferredVariant = u.cricketPreferredVariant,
+                    cricketPrimaryRole = u.cricketPrimaryRole,
+                    cricketPlayingPosition = u.cricketPlayingPosition,
+                    cricketBattingStyle = u.cricketBattingStyle,
+                    cricketBowlingStyle = u.cricketBowlingStyle,
+                    cricketJerseyNumber = u.cricketJerseyNumber,
+                    isLoading = false
                 )
-                val resp = userApiService.updateProfile(request)
-                if (resp.isSuccessful) {
-                    state = state.copy(isSaving = false, successMessage = "Profile updated successfully")
-                    _effect.emit(EditProfileEffect.ShowSnackbar("Profile updated successfully"))
-                    // Refresh auth repo user
-                    authRepository.getCurrentUser()
-                } else {
-                    val error = resp.errorBody()?.string() ?: "Update failed"
-                    state = state.copy(isSaving = false, errorMessage = error)
-                    _effect.emit(EditProfileEffect.ShowSnackbar(error))
-                }
-            } catch (e: Exception) {
-                state = state.copy(isSaving = false, errorMessage = e.message)
-                _effect.emit(EditProfileEffect.ShowSnackbar(e.message ?: "Update failed"))
+            }.onFailure { err ->
+                state = state.copy(isLoading = false, errorMessage = err.message)
             }
         }
     }
 
-    fun uploadAvatar(context: Context, uri: Uri) {
+    fun onUsernameChanged(v: String) { state = state.copy(username = v, errorMessage = null) }
+    fun onFirstNameChanged(v: String) { state = state.copy(firstName = v, errorMessage = null) }
+    fun onLastNameChanged(v: String) { state = state.copy(lastName = v, errorMessage = null) }
+    fun onGenderChanged(v: String) { state = state.copy(gender = v) }
+    fun onDobChanged(date: Date) { state = state.copy(dobDate = date) }
+    fun onPhoneChanged(v: String) {
+        val digits = v.filter { it.isDigit() }.take(10)
+        state = state.copy(phone = digits, errorMessage = null)
+    }
+    fun onBioChanged(v: String) { state = state.copy(bio = v) }
+    fun onAddressChanged(v: String) { state = state.copy(address = v) }
+    fun onCitySelected(cityId: Int, cityName: String, districtName: String, provinceName: String) {
+        state = state.copy(
+            homeCityId = cityId,
+            homeCity = cityName,
+            homeDistrict = districtName,
+            homeProvince = provinceName,
+            showLocationPicker = false
+        )
+    }
+    fun toggleSport(sport: String) {
+        val set = state.selectedSports.toMutableSet()
+        if (set.contains(sport)) set.remove(sport) else set.add(sport)
+        state = state.copy(selectedSports = set)
+    }
+    fun onAvailabilityChanged(v: String) { state = state.copy(availability = v) }
+    fun onPublicProfileChanged(v: Boolean) { state = state.copy(isPublicProfile = v) }
+    fun onShowContactChanged(v: Boolean) { state = state.copy(isShowContact = v) }
+
+    fun onCricketVariantChanged(v: String) { state = state.copy(cricketPreferredVariant = v) }
+    fun onCricketPrimaryRoleChanged(v: String) { state = state.copy(cricketPrimaryRole = v) }
+    fun onCricketPlayingPositionChanged(v: String) { state = state.copy(cricketPlayingPosition = v) }
+    fun onCricketBattingStyleChanged(v: String) { state = state.copy(cricketBattingStyle = v) }
+    fun onCricketBowlingStyleChanged(v: String) { state = state.copy(cricketBowlingStyle = v) }
+    fun onCricketJerseyNumberChanged(v: String) { state = state.copy(cricketJerseyNumber = v.filter { it.isDigit() }) }
+
+    fun onImageSelected(uri: Uri?) {
+        if (uri != null) {
+            state = state.copy(imageUri = uri, imageWasChanged = true, imageWasRemoved = false)
+        }
+    }
+    fun onRemovePhotoRequested() {
+        state = state.copy(showRemoveConfirmation = true)
+    }
+    fun confirmRemovePhoto() {
+        state = state.copy(
+            imageUri = null,
+            imageWasChanged = false,
+            imageWasRemoved = true,
+            showRemoveConfirmation = false
+        )
+    }
+    fun dismissRemoveConfirmation() {
+        state = state.copy(showRemoveConfirmation = false)
+    }
+
+    fun setShowPhoneModal(show: Boolean) { state = state.copy(showPhoneModal = show, phoneOtp = "") }
+    fun setShowDobPicker(show: Boolean) { state = state.copy(showDobPicker = show) }
+    fun setShowLocationPicker(show: Boolean) { state = state.copy(showLocationPicker = show) }
+    fun onPhoneOtpChanged(v: String) { state = state.copy(phoneOtp = v.filter { it.isDigit() }.take(6)) }
+
+    fun sendEmailVerificationLink() {
         viewModelScope.launch {
-            state = state.copy(isUploadingAvatar = true)
-            try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                val bytes = inputStream?.readBytes() ?: return@launch
-                val requestBody = bytes.toRequestBody("image/*".toMediaTypeOrNull())
-                val part = MultipartBody.Part.createFormData("avatar", "avatar.jpg", requestBody)
-                val resp = userApiService.uploadAvatar(part)
-                if (resp.isSuccessful && resp.body() != null) {
-                    val updated = resp.body()!!.toDomain()
-                    state = state.copy(
-                        user = updated,
-                        isUploadingAvatar = false
-                    )
-                    _effect.emit(EditProfileEffect.ShowSnackbar("Avatar updated"))
-                } else {
-                    state = state.copy(isUploadingAvatar = false)
-                    _effect.emit(EditProfileEffect.ShowSnackbar("Failed to upload avatar"))
-                }
-            } catch (e: Exception) {
-                state = state.copy(isUploadingAvatar = false)
-                _effect.emit(EditProfileEffect.ShowSnackbar(e.message ?: "Upload failed"))
+            state = state.copy(isSendingEmailLink = true, errorMessage = null)
+            val result = profileRepository.resendEmailVerificationLink()
+            result.onSuccess {
+                state = state.copy(isSendingEmailLink = false, bannerMessage = "Verification link sent to your email")
+            }.onFailure { err ->
+                state = state.copy(isSendingEmailLink = false, errorMessage = err.message)
             }
         }
     }
 
-    fun requestPhoneVerification() {
-        val phone = state.phone.trim()
-        if (phone.isBlank()) return
+    fun sendPhoneOtp() {
+        if (state.phone.length != 10) {
+            state = state.copy(errorMessage = "Phone number must be exactly 10 digits.")
+            return
+        }
         viewModelScope.launch {
-            state = state.copy(isVerifyingPhone = true, phoneVerifyError = null)
-            try {
-                val resp = userApiService.requestPhoneVerification(PhoneVerifyRequestDto(phone))
-                if (resp.isSuccessful && resp.body() != null) {
-                    val body = resp.body()!!
-                    state = state.copy(
-                        phoneVerifyChallengeId = body.challengeId,
-                        showPhoneVerifySheet = true,
-                        isVerifyingPhone = false
-                    )
-                } else {
-                    state = state.copy(isVerifyingPhone = false, phoneVerifyError = "Failed to send OTP")
-                }
-            } catch (e: Exception) {
-                state = state.copy(isVerifyingPhone = false, phoneVerifyError = e.message)
+            state = state.copy(isSendingPhoneOtp = true, errorMessage = null)
+            val result = profileRepository.sendPhoneOtp(state.phone)
+            result.onSuccess { resp ->
+                state = state.copy(
+                    isSendingPhoneOtp = false,
+                    phoneChallengeId = resp.challengeId,
+                    bannerMessage = "OTP sent to your phone"
+                )
+            }.onFailure { err ->
+                state = state.copy(isSendingPhoneOtp = false, errorMessage = err.message)
             }
         }
     }
 
     fun verifyPhoneOtp() {
-        val challengeId = state.phoneVerifyChallengeId ?: return
-        val otp = state.phoneOtp.trim()
-        if (otp.length < 4) {
-            state = state.copy(phoneVerifyError = "Enter the OTP")
+        val challengeId = state.phoneChallengeId ?: return
+        if (state.phoneOtp.length != 6) {
+            state = state.copy(errorMessage = "Enter the 6-digit OTP.")
             return
         }
         viewModelScope.launch {
-            state = state.copy(isVerifyingPhone = true, phoneVerifyError = null)
-            try {
-                val resp = userApiService.verifyPhoneOtp(PhoneOtpVerifyRequestDto(challengeId, otp))
-                if (resp.isSuccessful) {
-                    state = state.copy(
-                        showPhoneVerifySheet = false,
-                        isVerifyingPhone = false,
-                        phoneOtp = ""
-                    )
-                    _effect.emit(EditProfileEffect.ShowSnackbar("Phone verified successfully!"))
-                } else {
-                    state = state.copy(isVerifyingPhone = false, phoneVerifyError = "Invalid OTP")
-                }
-            } catch (e: Exception) {
-                state = state.copy(isVerifyingPhone = false, phoneVerifyError = e.message)
+            state = state.copy(isVerifyingPhoneOtp = true, errorMessage = null)
+            val result = profileRepository.verifyPhoneOtp(challengeId, state.phoneOtp)
+            result.onSuccess { userDto ->
+                state = state.copy(
+                    user = userDto.toDomain(),
+                    isVerifyingPhoneOtp = false,
+                    showPhoneModal = false,
+                    phoneOtp = "",
+                    bannerMessage = "Phone number verified successfully"
+                )
+            }.onFailure { err ->
+                state = state.copy(isVerifyingPhoneOtp = false, errorMessage = err.message)
             }
         }
     }
 
-    fun dismissPhoneVerifySheet() {
-        state = state.copy(showPhoneVerifySheet = false, phoneOtp = "", phoneVerifyError = null)
+    fun saveProfile(context: Context) {
+        val user = state.user
+        val normalizedUsername = state.username.trim().lowercase()
+        val currentUsername = user?.username.orEmpty().trim().lowercase()
+        val isUsernameChanging = currentUsername.isNotEmpty() && normalizedUsername != currentUsername
+        val trimmedPhone = state.phone.trim()
+
+        if (normalizedUsername.isBlank()) {
+            state = state.copy(errorMessage = "Username is required.")
+            return
+        }
+        if (!normalizedUsername.matches(Regex("^[a-z0-9_-]{4,30}$"))) {
+            state = state.copy(errorMessage = "Username must be 4-30 chars using lowercase letters, numbers, - or _.")
+            return
+        }
+        if (state.firstName.trim().isEmpty() || state.lastName.trim().isEmpty()) {
+            state = state.copy(errorMessage = "First name and last name are required.")
+            return
+        }
+        if (calculateAge(state.dobDate) < 13) {
+            state = state.copy(errorMessage = "You must be at least 13 years old to use this app.")
+            return
+        }
+        if (isUsernameChanging) {
+            if (user?.usernameChangesRemaining ?: 3 <= 0) {
+                state = state.copy(errorMessage = "You have reached the username change limit.")
+                return
+            }
+            if (user?.canChangeUsernameNow == false || (user?.usernameChangeCooldownDaysRemaining ?: 0) > 0) {
+                val cooldown = user?.usernameChangeCooldownDaysRemaining ?: 1
+                state = state.copy(errorMessage = "You can change your username again in $cooldown day(s).")
+                return
+            }
+        }
+        if (trimmedPhone.length != 10) {
+            state = state.copy(errorMessage = "Phone number must be exactly 10 digits.")
+            return
+        }
+
+        val dobFormatted = formatDateForApi(state.dobDate)
+
+        viewModelScope.launch {
+            state = state.copy(isSaving = true, errorMessage = null)
+            val result = profileRepository.updateProfile(
+                context = context,
+                username = normalizedUsername,
+                firstName = state.firstName.trim(),
+                lastName = state.lastName.trim(),
+                gender = state.gender,
+                dateOfBirth = dobFormatted,
+                phone = trimmedPhone,
+                bio = state.bio.trim(),
+                address = state.address.trim(),
+                homeDistrict = state.homeDistrict,
+                homeCity = state.homeCity,
+                homeCityId = state.homeCityId,
+                sportsPreferences = state.selectedSports.toList(),
+                availability = state.availability,
+                isPublicProfile = state.isPublicProfile,
+                isShowContact = state.isShowContact,
+                cricketPreferredVariant = state.cricketPreferredVariant,
+                cricketPrimaryRole = state.cricketPrimaryRole,
+                cricketPlayingPosition = state.cricketPlayingPosition,
+                cricketBattingStyle = state.cricketBattingStyle,
+                cricketBowlingStyle = state.cricketBowlingStyle,
+                cricketJerseyNumber = state.cricketJerseyNumber,
+                imageUri = if (state.imageWasChanged) state.imageUri else null,
+                removeImage = state.imageWasRemoved
+            )
+
+            result.onSuccess { updated ->
+                state = state.copy(
+                    user = updated.toDomain(),
+                    isSaving = false,
+                    bannerMessage = "Profile updated successfully"
+                )
+                _effect.emit(EditProfileEffect.ShowToast("Profile updated successfully"))
+                _effect.emit(EditProfileEffect.NavigateBack)
+            }.onFailure { err ->
+                state = state.copy(isSaving = false, errorMessage = err.message ?: "Failed to update profile")
+            }
+        }
+    }
+
+    fun clearBanner() {
+        state = state.copy(bannerMessage = null)
+    }
+
+    fun clearError() {
+        state = state.copy(errorMessage = null)
+    }
+
+    private fun parseDobDate(dobString: String): Date? {
+        return try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            sdf.timeZone = TimeZone.getTimeZone("UTC")
+            sdf.parse(dobString)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun formatDateForApi(date: Date): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        sdf.timeZone = TimeZone.getTimeZone("UTC")
+        return sdf.format(date)
+    }
+
+    private fun calculateAge(dob: Date): Int {
+        val dobCal = Calendar.getInstance().apply { time = dob }
+        val nowCal = Calendar.getInstance()
+        var age = nowCal.get(Calendar.YEAR) - dobCal.get(Calendar.YEAR)
+        if (nowCal.get(Calendar.DAY_OF_YEAR) < dobCal.get(Calendar.DAY_OF_YEAR)) {
+            age--
+        }
+        return age
     }
 }

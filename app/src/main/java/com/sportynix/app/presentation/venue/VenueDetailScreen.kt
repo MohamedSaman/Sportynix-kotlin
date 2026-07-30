@@ -609,7 +609,7 @@ fun VenueDetailScreen(
         // Add Review Dialog
         if (state.showAddReviewDialog) {
             AlertDialog(
-                onDismissRequest = { viewModel.closeAddReviewDialog() },
+                onDismissRequest = { viewModel.dismissAddReviewDialog() },
                 title = { Text("Write a Review", fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
@@ -645,7 +645,7 @@ fun VenueDetailScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { viewModel.closeAddReviewDialog() }) {
+                    TextButton(onClick = { viewModel.dismissAddReviewDialog() }) {
                         Text("Cancel")
                     }
                 }

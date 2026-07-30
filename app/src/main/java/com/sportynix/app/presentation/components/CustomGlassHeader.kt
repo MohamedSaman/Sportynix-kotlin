@@ -30,7 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +60,7 @@ import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 fun CustomGlassHeader(
     modifier: Modifier = Modifier,
     title: String? = null,
+    locationText: String? = "Nearby You",
     showBack: Boolean = false,
     onBackPress: (() -> Unit)? = null,
     onMessagesPress: (() -> Unit)? = null,
@@ -71,13 +72,14 @@ fun CustomGlassHeader(
     val bg = if (isDark) GlassSurfaceDark else GlassSurfaceLight
     val borderCol = if (isDark) GlassBorderDark else GlassBorderLight
     val circleBtnBg = if (isDark) Color(0xFF1E262C) else Color(0xFFE2E8F0)
+    val accentGreen = if (isDark) NeonGreen else SportynixGreenPrimary
 
     val infiniteTransition = rememberInfiniteTransition(label = "HeaderPulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.04f,
+        targetValue = 1.03f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 2200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse"
@@ -87,15 +89,15 @@ fun CustomGlassHeader(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 8.dp,
+                elevation = 6.dp,
                 shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
-                ambientColor = if (isDark) NeonGreen.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.06f),
-                spotColor = if (isDark) NeonGreen.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f)
+                ambientColor = if (isDark) NeonGreen.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f),
+                spotColor = if (isDark) NeonGreen.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.08f)
             )
             .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
             .background(bg)
             .border(
-                width = 1.dp,
+                width = 0.8.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
                         borderCol,
@@ -112,7 +114,7 @@ fun CustomGlassHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // LEFT SECTION (Back Button or Animated Logo)
+            // LEFT SECTION (Back Button or Animated Logo + Title + Location)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showBack && onBackPress != null) {
                     Box(
@@ -126,7 +128,7 @@ fun CustomGlassHeader(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = if (isDark) NeonGreen else SportynixGreenPrimary,
+                            tint = accentGreen,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -142,7 +144,7 @@ fun CustomGlassHeader(
                     Image(
                         painter = painterResource(id = logoRes),
                         contentDescription = "Sportynix Logo",
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(38.dp)
                     )
                 }
 
@@ -151,22 +153,22 @@ fun CustomGlassHeader(
                 Column {
                     Text(
                         text = title ?: "Sportynix",
-                        fontSize = 21.sp,
+                        fontSize = 23.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onBackground,
-                        letterSpacing = 0.4.sp
+                        letterSpacing = (-0.4).sp
                     )
                     if (title == null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.NearMe,
+                                imageVector = Icons.Default.LocationOn,
                                 contentDescription = "Location",
-                                tint = if (isDark) NeonGreen else SportynixGreenPrimary,
+                                tint = accentGreen,
                                 modifier = Modifier.size(11.dp)
                             )
-                            Spacer(modifier = Modifier.width(3.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             Text(
-                                text = "Nearby You",
+                                text = locationText ?: "Nearby You",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Medium
@@ -176,7 +178,7 @@ fun CustomGlassHeader(
                 }
             }
 
-            // RIGHT SECTION (Chat & Notifications Circle Buttons)
+            // RIGHT SECTION (Chat & Notifications Circle Buttons with Live Unread Badges)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -185,33 +187,35 @@ fun CustomGlassHeader(
                 if (onMessagesPress != null) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
                             .background(circleBtnBg)
+                            .border(0.6.dp, borderCol, CircleShape)
                             .clickable { onMessagesPress() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.ChatBubbleOutline,
                             contentDescription = "Chat",
-                            tint = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary,
-                            modifier = Modifier.size(18.dp)
+                            tint = accentGreen,
+                            modifier = Modifier.size(19.dp)
                         )
 
                         if (unreadMessagesCount > 0) {
+                            val msgBadgeText = if (unreadMessagesCount > 99) "99+" else unreadMessagesCount.toString()
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .padding(top = 1.dp, end = 1.dp)
-                                    .size(15.dp)
+                                    .offset(x = 3.dp, y = (-3).dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFEF4444)),
+                                    .background(Color(0xFFEF4444))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = if (unreadMessagesCount > 9) "9+" else unreadMessagesCount.toString(),
+                                    text = msgBadgeText,
                                     color = Color.White,
-                                    fontSize = 8.sp,
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -223,40 +227,38 @@ fun CustomGlassHeader(
                 if (onNotificationsPress != null) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
                             .background(circleBtnBg)
+                            .border(0.6.dp, borderCol, CircleShape)
                             .clickable { onNotificationsPress() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Notifications,
                             contentDescription = "Notifications",
-                            tint = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary,
-                            modifier = Modifier.size(19.dp)
+                            tint = accentGreen,
+                            modifier = Modifier.size(20.dp)
                         )
 
-                        val notifBadgeText = when {
-                            unreadNotificationsCount > 99 -> "99+"
-                            unreadNotificationsCount > 0 -> unreadNotificationsCount.toString()
-                            else -> "99+" // Default match exact RN screenshot badge
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 4.dp, y = (-2).dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFEF4444))
-                                .padding(horizontal = 4.dp, vertical = 1.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = notifBadgeText,
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black
-                            )
+                        if (unreadNotificationsCount > 0) {
+                            val notifBadgeText = if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString()
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 3.dp, y = (-3).dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFEF4444))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = notifBadgeText,
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

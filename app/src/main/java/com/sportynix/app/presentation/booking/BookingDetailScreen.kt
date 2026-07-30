@@ -103,7 +103,7 @@ fun BookingDetailScreen(
                 ) {
                     Column {
                         AsyncImage(
-                            model = booking?.venueImage?.ifEmpty { null } ?: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800",
+                            model = if (!booking?.venueImage.isNullOrEmpty()) booking?.venueImage else "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800",
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier

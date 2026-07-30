@@ -50,15 +50,10 @@ data class PhoneOtpVerifyRequestDto(
     @SerializedName("otp_code") val otpCode: String
 )
 
-data class FavoriteVenueDto(
-    @SerializedName("id") val id: String,
-    @SerializedName("venue") val venue: VenueDto
-)
-
 data class PaginatedFavoritesDto(
     @SerializedName("count") val count: Int?,
     @SerializedName("next") val next: String?,
-    @SerializedName("results") val results: List<FavoriteVenueDto>?
+    @SerializedName("results") val results: List<APIFavoriteDto>?
 )
 
 data class PointsDto(
@@ -78,13 +73,6 @@ data class ReferralDto(
     @SerializedName("total_referrals") val totalReferrals: Int = 0,
     @SerializedName("referral_bonus") val referralBonus: Int = 0,
     @SerializedName("referrals") val referrals: List<ReferralItemDto>? = null
-)
-
-data class ReferralItemDto(
-    @SerializedName("id") val id: String,
-    @SerializedName("referee_username") val refereeUsername: String?,
-    @SerializedName("bonus_points") val bonusPoints: Int = 0,
-    @SerializedName("created_at") val createdAt: String?
 )
 
 data class ChatConversationDto(

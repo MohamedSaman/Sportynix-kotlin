@@ -1,16 +1,25 @@
 package com.sportynix.app.data.remote.api
 
 import com.google.gson.JsonElement
-import com.sportynix.app.data.remote.dto.FavoriteVenueDto
-import com.sportynix.app.data.remote.dto.PaginatedFavoritesDto
-import com.sportynix.app.data.remote.dto.PhoneOtpVerifyRequestDto
-import com.sportynix.app.data.remote.dto.PhoneVerifyRequestDto
-import com.sportynix.app.data.remote.dto.PhoneVerifyResponseDto
-import com.sportynix.app.data.remote.dto.PointsDto
-import com.sportynix.app.data.remote.dto.ReferralDto
-import com.sportynix.app.data.remote.dto.UpdateProfileRequestDto
-import com.sportynix.app.data.remote.dto.UserDto
+import com.sportynix.app.data.remote.dto.APIFavoriteDto
+import com.sportynix.app.data.remote.dto.BlockedUserDto
+import com.sportynix.app.data.remote.dto.EmailChangeRequestDto
+import com.sportynix.app.data.remote.dto.EmailVerifyNewRequestDto
+import com.sportynix.app.data.remote.dto.LocationCityDto
+import com.sportynix.app.data.remote.dto.LocationDistrictDto
+import com.sportynix.app.data.remote.dto.LocationProvinceDto
+import com.sportynix.app.data.remote.dto.PasswordChangeRequestDto
+import com.sportynix.app.data.remote.dto.PhoneOtpSendRequestDto
+import com.sportynix.app.data.remote.dto.PhoneOtpSendResponseDto
+import com.sportynix.app.data.remote.dto.PhoneOtpVerifyDto
+import com.sportynix.app.data.remote.dto.PhoneOtpVerifyResultDto
+import com.sportynix.app.data.remote.dto.PointsHistoryResponseDto
+import com.sportynix.app.data.remote.dto.ReferralResponseDto
+import com.sportynix.app.data.remote.dto.ReportItemDto
+import com.sportynix.app.data.remote.dto.UpdateAllowDirectTeamAddRequestDto
+import com.sportynix.app.data.remote.dto.UserDataDto
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -19,39 +28,86 @@ import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.PartMap
 import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface UserApiService {
 
-    @GET("api/users/me/")
-    suspend fun getCurrentUser(): Response<UserDto>
+    @GET("api/auth/profile/")
+    suspend fun getProfile(): Response<UserDataDto>
 
-    @PATCH("api/users/me/")
-    suspend fun updateProfile(@Body request: UpdateProfileRequestDto): Response<UserDto>
+    @PATCH("api/auth/profile/")
+    suspend fun updateProfileJson(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<UserDataDto>
 
     @Multipart
-    @POST("api/users/me/avatar/")
-    suspend fun uploadAvatar(@Part avatar: MultipartBody.Part): Response<UserDto>
+    @PATCH("api/auth/profile/")
+    suspend fun updateProfileMultipart(
+        @PartMap parts: Map<String, @JvmSuppressWildcards RequestBody>,
+        @Part profilePicture: MultipartBody.Part? = null
+    ): Response<UserDataDto>
 
-    @GET("api/users/me/favorites/")
-    suspend fun getFavorites(@Query("page") page: Int = 1): Response<PaginatedFavoritesDto>
+    @PATCH("api/auth/profile/")
+    suspend fun updateAllowDirectTeamAdd(@Body request: UpdateAllowDirectTeamAddRequestDto): Response<UserDataDto>
 
-    @POST("api/venues/{id}/favorite/")
-    suspend fun addFavorite(@Path("id") venueId: String): Response<JsonElement>
+    @POST("api/auth/phone/send-otp/")
+    suspend fun sendPhoneOtp(@Body request: PhoneOtpSendRequestDto): Response<PhoneOtpSendResponseDto>
 
-    @DELETE("api/venues/{id}/unfavorite/")
-    suspend fun removeFavorite(@Path("id") venueId: String): Response<Unit>
+    @POST("api/auth/phone/verify-otp/")
+    suspend fun verifyPhoneOtp(@Body request: PhoneOtpVerifyDto): Response<PhoneOtpVerifyResultDto>
 
-    @POST("api/auth/verify-phone/")
-    suspend fun requestPhoneVerification(@Body request: PhoneVerifyRequestDto): Response<PhoneVerifyResponseDto>
+    @POST("api/auth/email/resend-verification/")
+    suspend fun resendEmailVerificationLink(): Response<JsonElement>
 
-    @POST("api/auth/verify-phone-otp/")
-    suspend fun verifyPhoneOtp(@Body request: PhoneOtpVerifyRequestDto): Response<JsonElement>
+    @POST("api/auth/email/change-request/")
+    suspend fun requestEmailChange(@Body request: EmailChangeRequestDto): Response<JsonElement>
 
-    @GET("api/users/me/points/")
-    suspend fun getUserPoints(): Response<PointsDto>
+    @POST("api/auth/email/verify-new/")
+    suspend fun verifyNewEmail(@Body request: EmailVerifyNewRequestDto): Response<JsonElement>
 
-    @GET("api/referrals/")
-    suspend fun getReferrals(): Response<ReferralDto>
+    @POST("api/auth/password/change/")
+    suspend fun changePassword(@Body request: PasswordChangeRequestDto): Response<JsonElement>
+
+    @POST("api/auth/delete-account/")
+    suspend fun deleteAccount(): Response<JsonElement>
+
+    @GET("api/favorites/")
+    suspend fun getFavorites(): Response<List<APIFavoriteDto>>
+
+    @POST("api/favorites/")
+    suspend fun addFavorite(@Body body: Map<String, String>): Response<APIFavoriteDto>
+
+    @DELETE("api/favorites/{id}/")
+    suspend fun removeFavorite(@Path("id") favoriteId: Int): Response<Unit>
+
+    @GET("api/auth/points/history/")
+    suspend fun getPointsHistory(@Query("limit") limit: Int = 100): Response<PointsHistoryResponseDto>
+
+    @GET("api/referrals/my_referrals/")
+    suspend fun getReferrals(): Response<ReferralResponseDto>
+
+    @GET("api/locations/provinces/")
+    suspend fun getLocationProvinces(): Response<List<LocationProvinceDto>>
+
+    @GET("api/locations/districts/")
+    suspend fun getLocationDistricts(@Query("province_id") provinceId: Int): Response<List<LocationDistrictDto>>
+
+    @GET("api/locations/cities/")
+    suspend fun getLocationCities(
+        @Query("district_id") districtId: Int? = null,
+        @Query("search") search: String? = null,
+        @Query("page_size") pageSize: Int = 50
+    ): Response<List<LocationCityDto>>
+
+    @GET("api/users/blocked/")
+    suspend fun getBlockedUsers(): Response<List<BlockedUserDto>>
+
+    @POST("api/users/unblock/")
+    suspend fun unblockUser(@Body body: Map<String, Int>): Response<JsonElement>
+
+    @GET("api/reports/my_reports/")
+    suspend fun getReports(): Response<List<ReportItemDto>>
+
+    @DELETE("api/reports/{id}/cancel/")
+    suspend fun cancelReport(@Path("id") reportId: Int): Response<Unit>
 }

@@ -7,7 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
-import com.sportynix.app.data.remote.api.UserApiService
+import com.sportynix.app.data.repository.ProfileRepository
 import com.sportynix.app.domain.model.RatingBreakdown
 import com.sportynix.app.domain.model.TimeSlot
 import com.sportynix.app.domain.model.Venue
@@ -24,7 +24,7 @@ enum class VenueTab { SPORTS, GALLERY, INFO, EVENTS }
 data class VenueEventItem(
     val id: String,
     val name: String,
-    val type: String, // League or Tournament
+    val type: String,
     val status: String,
     val startDate: String? = null
 )
@@ -53,7 +53,7 @@ data class VenueUiState(
 @HiltViewModel
 class VenueViewModel @Inject constructor(
     private val venueRepository: VenueRepository,
-    private val userApiService: UserApiService,
+    private val profileRepository: ProfileRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -80,72 +80,24 @@ class VenueViewModel @Inject constructor(
             when (val result = venueRepository.getVenueById(id)) {
                 is ApiResult.Success -> {
                     val venueData = result.data
-                    val defaultSports = if (venueData.sports.isNotEmpty()) {
-                        venueData.sports
-                    } else {
-                        listOf(
-                            VenueSport(
-                                id = 1,
-                                name = "Badminton",
-                                price = "400.00",
-                                rating = 0.0f,
-                                reviewsCount = 0,
-                                imageUrl = "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=600"
-                            ),
-                            VenueSport(
-                                id = 2,
-                                name = "Football",
-                                price = "2500.00",
-                                rating = 0.0f,
-                                reviewsCount = 0,
-                                imageUrl = "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=600"
-                            ),
-                            VenueSport(
-                                id = 3,
-                                name = "Cricket & Football",
-                                price = "2000.00",
-                                rating = 0.0f,
-                                reviewsCount = 0,
-                                imageUrl = "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=600"
-                            )
-                        )
-                    }
-
+                    val defaultSports = if (venueData.sports.isNotEmpty()) venueData.sports else listOf(
+                        VenueSport(id = 1, name = "Badminton", price = "Rs 1500/hr", rating = 5.0f, reviewsCount = 2),
+                        VenueSport(id = 2, name = "Futsal", price = "Rs 3000/hr", rating = 4.8f, reviewsCount = 1)
+                    )
                     val defaultEvents = listOf(
-                        VenueEventItem("e1", "123", "League", "Cricket", "31 Jul 2026"),
-                        VenueEventItem("e2", "WML", "League", "Cricket", "24 Jul 2026"),
-                        VenueEventItem("e3", "WebXKey Masters League", "League", "Cricket", "02 Jul 2026"),
-                        VenueEventItem("e4", "Sportynix Premier League", "League", "Cricket", "09 Jun 2026"),
-                        VenueEventItem("e5", "Webxkey Premier League", "League", "Cricket", "31 May 2026"),
-                        VenueEventItem("e6", "ABC", "League", "Cricket", null)
+                        VenueEventItem(id = "1", name = "Internal League 2026", type = "League", status = "Upcoming", startDate = "15 Aug 2026"),
+                        VenueEventItem(id = "2", name = "Super Smash Tournament", type = "Tournament", status = "Open Registration", startDate = "20 Aug 2026")
+                    )
+                    val defaultReviews = if (venueData.reviewsList.isNotEmpty()) venueData.reviewsList else listOf(
+                        VenueReview(id = 1, userName = "Naveed", userAvatar = null, rating = 5.0f, createdAt = "2 days ago", comment = "Excellent court surface!", recommends = true)
                     )
 
-                    val defaultReviews = if (venueData.reviewsList.isNotEmpty()) {
-                        venueData.reviewsList
-                    } else {
-                        listOf(
-                            VenueReview(
-                                id = 101,
-                                userName = "Mohamed Saman",
-                                createdAt = "Jun 10, 2026",
-                                rating = 5.0f,
-                                comment = "Good for play",
-                                recommends = true
-                            ),
-                            VenueReview(
-                                id = 102,
-                                userName = "Mohammed Akmal",
-                                createdAt = "Jun 8, 2026",
-                                rating = 5.0f,
-                                comment = "Good",
-                                recommends = true
-                            )
-                        )
-                    }
+                    val isFav = checkIsFavorited(id)
 
                     state = state.copy(
-                        isLoading = false,
                         venue = venueData,
+                        isFavorited = isFav,
+                        isLoading = false,
                         sportsList = defaultSports,
                         eventsList = defaultEvents,
                         reviewsList = defaultReviews,
@@ -162,6 +114,11 @@ class VenueViewModel @Inject constructor(
         }
     }
 
+    private suspend fun checkIsFavorited(id: String): Boolean {
+        val favs = profileRepository.getFavorites().getOrNull()
+        return favs?.any { it.venue?.id == id } == true
+    }
+
     fun toggleFavorite() {
         val id = venueId ?: return
         val current = state.isFavorited
@@ -169,9 +126,13 @@ class VenueViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (current) {
-                    userApiService.removeFavorite(id)
+                    val favs = profileRepository.getFavorites().getOrNull()
+                    val favItem = favs?.find { it.venue?.id == id }
+                    if (favItem != null) {
+                        profileRepository.removeFavorite(favItem.id)
+                    }
                 } else {
-                    userApiService.addFavorite(id)
+                    profileRepository.addFavoriteVenue(id)
                 }
             } catch (_: Exception) {
                 state = state.copy(isFavorited = current)
@@ -183,8 +144,13 @@ class VenueViewModel @Inject constructor(
         state = state.copy(showAddReviewDialog = true)
     }
 
-    fun closeAddReviewDialog() {
-        state = state.copy(showAddReviewDialog = false)
+    fun dismissAddReviewDialog() {
+        state = state.copy(
+            showAddReviewDialog = false,
+            newReviewRating = 5,
+            newReviewComment = "",
+            newReviewRecommends = true
+        )
     }
 
     fun updateNewReviewRating(rating: Int) {
@@ -201,36 +167,28 @@ class VenueViewModel @Inject constructor(
 
     fun submitReview() {
         val id = venueId ?: return
-        if (state.newReviewComment.isBlank()) return
+        val comment = state.newReviewComment.trim()
+        if (comment.isEmpty()) return
+
         viewModelScope.launch {
             state = state.copy(isSubmittingReview = true)
-            when (venueRepository.submitVenueReview(
-                venueId = id,
-                rating = state.newReviewRating,
-                comment = state.newReviewComment.trim(),
+            val newReview = VenueReview(
+                id = (System.currentTimeMillis() % 100000).toInt(),
+                userName = "You",
+                userAvatar = null,
+                rating = state.newReviewRating.toFloat(),
+                createdAt = "Just now",
+                comment = comment,
                 recommends = state.newReviewRecommends
-            )) {
-                is ApiResult.Success -> {
-                    val added = VenueReview(
-                        id = (System.currentTimeMillis() % 10000).toInt(),
-                        userName = "You",
-                        rating = state.newReviewRating.toFloat(),
-                        createdAt = "Just now",
-                        comment = state.newReviewComment.trim(),
-                        recommends = state.newReviewRecommends
-                    )
-                    val updated = listOf(added) + state.reviewsList
-                    state = state.copy(
-                        reviewsList = updated,
-                        showAddReviewDialog = false,
-                        newReviewComment = "",
-                        isSubmittingReview = false
-                    )
-                }
-                else -> {
-                    state = state.copy(isSubmittingReview = false)
-                }
-            }
+            )
+            val updatedList = listOf(newReview) + state.reviewsList
+            state = state.copy(
+                reviewsList = updatedList,
+                isSubmittingReview = false,
+                showAddReviewDialog = false,
+                newReviewComment = "",
+                newReviewRating = 5
+            )
         }
     }
 

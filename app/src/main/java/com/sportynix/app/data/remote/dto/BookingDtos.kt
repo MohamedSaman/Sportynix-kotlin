@@ -195,3 +195,132 @@ data class CancelBookingRequestDto(
 data class AssignTeamRequestDto(
     @SerializedName("team_id") val teamId: Int
 )
+
+data class OpeningHourEntryDto(
+    @SerializedName("open") val open: String? = null,
+    @SerializedName("close") val close: String? = null,
+    @SerializedName("is_closed") val isClosed: Boolean = false
+)
+
+data class SlotData(
+    @SerializedName("start") val startTime: String? = null,
+    @SerializedName("end") val endTime: String? = null,
+    @SerializedName("raw_start") val rawStart: String? = null,
+    @SerializedName("raw_end") val rawEnd: String? = null,
+    @SerializedName("slot_key") val slotKey: String? = null,
+    @SerializedName("available") val available: Boolean? = true,
+    @SerializedName("is_past_time") val isPastTime: Boolean? = false,
+    @SerializedName("is_fully_booked") val isFullyBooked: Boolean? = false,
+    @SerializedName("is_held") val isHeld: Boolean? = false,
+    @SerializedName("disabled_reason") val disabledReason: String? = null,
+    @SerializedName("duration") val duration: Int? = 60,
+    @SerializedName("held_by_current_user") val heldByCurrentUser: Boolean? = false,
+    @SerializedName("available_courts") val availableCourts: Int? = null,
+    @SerializedName("total_courts") val totalCourts: Int? = null
+)
+
+data class AvailableSlotsResponse(
+    @SerializedName("available_slots") val availableSlots: List<SlotData>? = null,
+    @SerializedName("slots") val slots: List<SlotData>? = null
+)
+
+data class PermanentSlotAvailability(
+    @SerializedName("available") val available: Boolean = false,
+    @SerializedName("days_remaining") val daysRemaining: Int = 0,
+    @SerializedName("booked_count") val bookedCount: Int = 0,
+    @SerializedName("first_available_date") val firstAvailableDate: String? = null,
+    @SerializedName("total_days_checked") val totalDaysChecked: Int = 0,
+    @SerializedName("max_courts") val maxCourts: Int? = null,
+    @SerializedName("total_occupied_by_others") val totalOccupiedByOthers: Int? = null
+)
+
+data class APIBookingTeamInfo(
+    @SerializedName("id") val id: Int,
+    @SerializedName("name") val name: String,
+    @SerializedName("members_count") val membersCount: Int? = 0
+)
+
+data class APIPermanentSource(
+    @SerializedName("id") val id: Int
+)
+
+data class APIBookingReview(
+    @SerializedName("id") val id: Int,
+    @SerializedName("rating") val rating: Double? = null
+)
+
+data class APIBooking(
+    @SerializedName("id") val id: Int,
+    @SerializedName("venue") val venue: String? = null,
+    @SerializedName("sport") val sport: String? = null,
+    @SerializedName("court") val court: String? = null,
+    @SerializedName("players") val players: String? = null,
+    @SerializedName("team_info") val teamInfo: APIBookingTeamInfo? = null,
+    @SerializedName("opponent_team_info") val opponentTeamInfo: APIBookingTeamInfo? = null,
+    @SerializedName("date") val date: String? = null,
+    @SerializedName("time") val time: String? = null,
+    @SerializedName("duration") val duration: String? = null,
+    @SerializedName("location") val location: String? = null,
+    @SerializedName("price") val price: String? = null,
+    @SerializedName("booked_date") val bookedDate: String? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("is_permanent") val isPermanent: Boolean? = false,
+    @SerializedName("permanent_source_id") val permanentSourceId: Int? = null,
+    @SerializedName("permanent_source") val permanentSource: APIPermanentSource? = null,
+    @SerializedName("image") val image: String? = null,
+    @SerializedName("qr_code") val qrCode: Boolean? = false,
+    @SerializedName("venue_id") val venueId: Int? = null,
+    @SerializedName("sport_id") val sportId: Int? = null,
+    @SerializedName("review") val review: APIBookingReview? = null,
+    @SerializedName("review_id") val reviewId: Int? = null,
+    @SerializedName("review_rating") val reviewRating: Double? = null,
+    @SerializedName("is_challenge_booking") val isChallengeBooking: Boolean? = false,
+    @SerializedName("user_id") val userId: Int? = null,
+    @SerializedName("can_cancel") val canCancel: Boolean? = false,
+    @SerializedName("booked_at") val bookedAt: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
+data class BookingSlotInfo(
+    val startTime: String,
+    val endTime: String,
+    val displayStart: String,
+    val displayEnd: String,
+    val duration: Int = 60,
+    val price: Double
+)
+
+data class BookingPayload(
+    val sportId: Int,
+    val sportName: String,
+    val sportPrice: String,
+    val sportImageURL: String,
+    val venueId: Int,
+    val venueName: String,
+    val venueAddress: String,
+    val bookingType: String,
+    val bookingDate: String,
+    val selectedDays: List<String>,
+    val slots: List<BookingSlotInfo>,
+    val totalPrice: Double
+)
+
+data class BookingTeamData(
+    val id: Int,
+    val name: String? = null,
+    val memberCount: Int? = 0
+)
+
+data class ConfirmedBookingData(
+    val id: Int,
+    val qrCode: String? = null,
+    val startTime: String? = null,
+    val endTime: String? = null,
+    val price: Double? = null,
+    val duration: Int? = null,
+    val bookingDate: String? = null,
+    val bookingReference: String? = null,
+    val isDemo: Boolean = false,
+    val team: BookingTeamData? = null
+)
+

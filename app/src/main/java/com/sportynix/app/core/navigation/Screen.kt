@@ -60,7 +60,14 @@ sealed class Screen(val route: String) {
     object Team : Screen("team")
     object Points : Screen("points")
     object Referrals : Screen("referrals")
+    object PaymentMethods : Screen("payment_methods")
+    object NotificationsSettings : Screen("notifications_settings")
+    object PrivacySecurity : Screen("privacy_security")
+    object BlockedUsers : Screen("blocked_users")
+    object ReportedUsers : Screen("reported_users")
+    object HelpSupport : Screen("help_support")
     object AboutUs : Screen("about_us")
+    object PlayerProfile : Screen("player_profile")
     object LeagueList : Screen("league_list")
     object LeagueDetail : Screen("league_detail/{leagueId}") {
         fun createRoute(leagueId: String) = "league_detail/$leagueId"
@@ -76,4 +83,3 @@ sealed class Screen(val route: String) {
         fun createRoute(auctionId: String) = "auction/$auctionId"
     }
 }
-

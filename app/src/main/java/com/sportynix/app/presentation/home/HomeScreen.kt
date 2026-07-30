@@ -133,25 +133,11 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             CustomGlassHeader(
+                locationText = if (state.userLocation != null) "Nearby You" else "Finding location...",
                 onNotificationsPress = onNavigateToNotification,
                 onMessagesPress = { },
                 unreadNotificationsCount = state.unreadNotificationsCount,
                 unreadMessagesCount = state.unreadMessagesCount
-            )
-        },
-        bottomBar = {
-            GlassBottomNavigation(
-                currentRoute = selectedBottomNav,
-                onNavigate = { route ->
-                    selectedBottomNav = route
-                    when (route) {
-                        "search" -> onNavigateToSearch()
-                        "profile" -> onNavigateToProfile()
-                        "history" -> onNavigateToBookingHistory()
-                        "events" -> onNavigateToLeagues()
-                        else -> {}
-                    }
-                }
             )
         },
         containerColor = MaterialTheme.colorScheme.background

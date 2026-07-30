@@ -19,4 +19,19 @@ interface BookingRepository {
     suspend fun savePendingPaymentSession(sessionJson: String)
     suspend fun getPendingPaymentSession(): String?
     suspend fun clearPendingPaymentSession()
+
+    // ── Live Swift Equivalent Methods ──
+    suspend fun fetchAvailableSlots(sportId: Int, venueId: Int, date: String): ApiResult<List<SlotData>>
+    suspend fun fetchPermanentAvailability(sportId: Int, selectedDays: List<Int>): ApiResult<Map<String, PermanentSlotAvailability>>
+    suspend fun holdSlot(sportId: Int, date: String, startTime: String, endTime: String, isPermanent: Boolean = false, selectedDays: List<Int> = emptyList()): ApiResult<Unit>
+    suspend fun releaseSlot(sportId: Int, date: String, startTime: String, endTime: String, isPermanent: Boolean = false, selectedDays: List<Int> = emptyList()): ApiResult<Unit>
+    suspend fun convertHoldsToBookings(sportId: Int, bookingType: String, slots: List<Map<String, Any>>, selectedDays: List<String>): ApiResult<Unit>
+    suspend fun createBooking(payload: BookingPayload, userName: String, userEmail: String, userPhone: String): ApiResult<List<ConfirmedBookingData>>
+    suspend fun fetchBookings(): ApiResult<List<Booking>>
+    suspend fun fetchBookingDetails(id: Int): ApiResult<Booking>
+    suspend fun fetchBookingQRCode(id: Int): ApiResult<String>
+    suspend fun cancelBookingInt(id: Int): ApiResult<Unit>
+    suspend fun cancelSeriesInt(id: Int): ApiResult<Unit>
+    suspend fun assignTeamInt(id: Int, teamId: Int): ApiResult<Unit>
+    suspend fun removeTeamInt(id: Int): ApiResult<Unit>
 }

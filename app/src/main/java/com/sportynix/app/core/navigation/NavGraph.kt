@@ -12,6 +12,7 @@ import com.sportynix.app.presentation.authentication.ResetPasswordScreen
 import com.sportynix.app.presentation.authentication.SignInScreen
 import com.sportynix.app.presentation.authentication.SignUpScreen
 import com.sportynix.app.presentation.authentication.WelcomeScreen
+import com.sportynix.app.data.remote.dto.BookingPayload
 import com.sportynix.app.presentation.booking.BookingDetailScreen
 import com.sportynix.app.presentation.booking.BookingHistoryScreen
 import com.sportynix.app.presentation.booking.BookingSummaryScreen
@@ -20,9 +21,18 @@ import com.sportynix.app.presentation.notification.NotificationScreen
 import com.sportynix.app.presentation.payment.PaymentScreen
 import com.sportynix.app.presentation.profile.EditProfileScreen
 import com.sportynix.app.presentation.profile.FavoritesScreen
+import com.sportynix.app.presentation.profile.PaymentMethodsScreen
+import com.sportynix.app.presentation.profile.PointsScreen
 import com.sportynix.app.presentation.profile.ProfileScreen
+import com.sportynix.app.presentation.profile.ReferralScreen
 import com.sportynix.app.presentation.profile.TeamScreen
 import com.sportynix.app.presentation.search.SearchScreen
+import com.sportynix.app.presentation.settings.AboutScreen
+import com.sportynix.app.presentation.settings.BlockedUsersScreen
+import com.sportynix.app.presentation.settings.HelpSupportScreen
+import com.sportynix.app.presentation.settings.NotificationsSettingsScreen
+import com.sportynix.app.presentation.settings.PrivacySecurityScreen
+import com.sportynix.app.presentation.settings.ReportedUsersScreen
 import com.sportynix.app.presentation.settings.SettingsScreen
 import com.sportynix.app.presentation.splash.SplashScreen
 import com.sportynix.app.presentation.venue.SportDetailScreen
@@ -143,19 +153,37 @@ fun NavGraph(
         }
 
         composable(Screen.Home.route) {
-            HomeScreen(
+            com.sportynix.app.presentation.navigation.MainTabScreen(
                 onNavigateToVenueDetail = { venueId ->
                     navController.navigate(Screen.VenueDetail.createRoute(venueId))
                 },
-                onNavigateToSearch = { navController.navigate(Screen.Search.route) },
-                onNavigateToProfile = { navController.navigate(Screen.Profile.route) },
+                onNavigateToBookingDetail = { bookingId ->
+                    navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString()))
+                },
+                onNavigateToNewBooking = {
+                    navController.navigate(Screen.Booking.createRoute("1", "1"))
+                },
                 onNavigateToNotification = { navController.navigate(Screen.Notification.route) },
-                onNavigateToBookingHistory = { navController.navigate(Screen.BookingHistory.route) },
                 onNavigateToLeagues = { navController.navigate(Screen.LeagueList.route) },
-                onNavigateToTournaments = { navController.navigate(Screen.TournamentList.route) }
+                onNavigateToTournaments = { navController.navigate(Screen.TournamentList.route) },
+                onNavigateToLiveCricket = { matchId -> navController.navigate(Screen.LiveCricketScoring.createRoute(matchId)) },
+                onNavigateToAuction = { },
+                onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) },
+                onNavigateToFavorites = { navController.navigate(Screen.Favorites.route) },
+                onNavigateToPoints = { navController.navigate(Screen.Points.route) },
+                onNavigateToReferral = { navController.navigate(Screen.Referrals.route) },
+                onNavigateToPaymentMethods = { navController.navigate(Screen.PaymentMethods.route) },
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToHelpSupport = { navController.navigate(Screen.HelpSupport.route) },
+                onNavigateToAbout = { navController.navigate(Screen.AboutUs.route) },
+                onNavigateToTeam = { navController.navigate(Screen.Team.route) },
+                onNavigateToSignIn = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                }
             )
         }
-
 
         composable(Screen.VenueList.route) {
             com.sportynix.app.presentation.venue.NearbyVenuesScreen(
@@ -207,11 +235,20 @@ fun NavGraph(
             val venueId = backStackEntry.arguments?.getString("venueId") ?: ""
             val sportId = backStackEntry.arguments?.getString("sportId") ?: ""
             com.sportynix.app.presentation.booking.BookingScreen(
-                venueId = venueId,
-                sportId = sportId,
+                venueId = venueId.toIntOrNull() ?: 1,
+                sportId = sportId.toIntOrNull() ?: 1,
+                sportName = "Sport",
+                sportPrice = "400.00",
+                sportImageURL = "",
+                complexName = "Sportynix Complex",
+                complexLocation = "Location",
+                complexRating = 4.5,
+                complexReviews = 10,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToSummary = { vId, sId, date, slotIds, bType, days ->
-                    navController.navigate(Screen.BookingSummary.createRoute(vId, sId, date, slotIds, bType, days))
+                onNavigateToSummary = { payload ->
+                    val slotKeys = payload.slots.joinToString(",") { "${it.startTime}-${it.endTime}" }
+                    val daysStr = payload.selectedDays.joinToString(",")
+                    navController.navigate(Screen.BookingSummary.createRoute(payload.venueId.toString(), payload.sportId.toString(), payload.bookingDate, slotKeys, payload.bookingType, daysStr))
                 }
             )
         }
@@ -314,7 +351,10 @@ fun NavGraph(
                 onNavigateToFavorites = { navController.navigate(Screen.Favorites.route) },
                 onNavigateToTeam = { navController.navigate(Screen.Team.route) },
                 onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) },
-                onNavigateToPayments = { navController.navigate(Screen.Payment.createRoute("history", 0.0)) },
+                onNavigateToPayments = { navController.navigate(Screen.PaymentMethods.route) },
+                onNavigateToPoints = { navController.navigate(Screen.Points.route) },
+                onNavigateToReferrals = { navController.navigate(Screen.Referrals.route) },
+                onNavigateToAboutUs = { navController.navigate(Screen.AboutUs.route) },
                 onLogout = {
                     navController.navigate(Screen.Welcome.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
@@ -329,11 +369,47 @@ fun NavGraph(
             )
         }
 
+        composable(Screen.Points.route) {
+            PointsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.Referrals.route) {
+            ReferralScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.PaymentMethods.route) {
+            PaymentMethodsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.NotificationsSettings.route) {
+            NotificationsSettingsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.PrivacySecurity.route) {
+            PrivacySecurityScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.BlockedUsers.route) {
+            BlockedUsersScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.ReportedUsers.route) {
+            ReportedUsersScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.HelpSupport.route) {
+            HelpSupportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.AboutUs.route) {
+            AboutScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
         composable(Screen.BookingHistory.route) {
             BookingHistoryScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToDetail = { bookingId ->
-                    navController.navigate(Screen.BookingDetail.createRoute(bookingId))
+                    navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString()))
                 }
             )
         }
@@ -417,7 +493,17 @@ fun NavGraph(
         }
 
         composable(Screen.Settings.route) {
-            SettingsScreen(onNavigateBack = { navController.popBackStack() })
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) },
+                onNavigateToBlockedUsers = { navController.navigate(Screen.BlockedUsers.route) },
+                onNavigateToReportedUsers = { navController.navigate(Screen.ReportedUsers.route) },
+                onLogout = {
+                    navController.navigate(Screen.Welcome.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                }
+            )
         }
 
         composable(Screen.LeagueList.route) {
@@ -483,4 +569,3 @@ fun NavGraph(
         }
     }
 }
-

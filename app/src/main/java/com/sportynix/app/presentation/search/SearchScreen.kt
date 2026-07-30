@@ -34,6 +34,8 @@ import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +73,8 @@ fun SearchScreen(
     onNavigateToHistory: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    autoFocusSearch: Boolean = false,
+    onSearchFocused: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
@@ -78,6 +82,14 @@ fun SearchScreen(
     val context = LocalContext.current
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    LaunchedEffect(autoFocusSearch) {
+        if (autoFocusSearch) {
+            focusRequester.requestFocus()
+            onSearchFocused()
+        }
+    }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -140,91 +152,6 @@ fun SearchScreen(
                 }
             }
         },
-        bottomBar = {
-            // Floating Glass Bottom Navigation
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                GlassCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp),
-                    shape = RoundedCornerShape(32.dp),
-                    elevation = 8.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Events
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onNavigateToEvents() }
-                        ) {
-                            Icon(imageVector = Icons.Default.EmojiEvents, contentDescription = "Events", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                            Text("Events", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-
-                        // History
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onNavigateToHistory() }
-                        ) {
-                            Icon(imageVector = Icons.Default.AccessTime, contentDescription = "History", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                            Text("History", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-
-                        // Home
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onNavigateToHome() }
-                        ) {
-                            Icon(imageVector = Icons.Default.Home, contentDescription = "Home", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                            Text("Home", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-
-                        // Search (Active Selected Pill)
-                        Box(
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .height(46.dp)
-                                .clip(RoundedCornerShape(23.dp))
-                                .background(primaryGreen),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(18.dp))
-                                Text("Search", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-
-                        // Profile
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onNavigateToProfile() }
-                        ) {
-                            Icon(imageVector = Icons.Default.Person, contentDescription = "Profile", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                            Text("Profile", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-        },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
@@ -276,7 +203,9 @@ fun SearchScreen(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(focusRequester)
                         )
                         if (state.searchQuery.isNotEmpty()) {
                             Icon(
