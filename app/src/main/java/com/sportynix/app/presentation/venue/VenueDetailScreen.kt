@@ -3,873 +3,831 @@ package com.sportynix.app.presentation.venue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import com.sportynix.app.domain.model.VenueReview
-import com.sportynix.app.domain.model.VenueSport
-import com.sportynix.app.presentation.components.GlassCard
-import com.sportynix.app.presentation.components.ShimmerSkeleton
-import com.sportynix.app.presentation.theme.AccentGold
-import com.sportynix.app.presentation.theme.NeonGreen
+import com.sportynix.app.data.remote.dto.OpeningHourEntryDto
+import com.sportynix.app.data.remote.dto.VenueDto
+import com.sportynix.app.data.remote.dto.VenueSportDto
 import com.sportynix.app.presentation.theme.SportynixGreenPrimary
+import com.sportynix.app.presentation.venue.components.ReviewCard
+import com.sportynix.app.presentation.venue.components.ReviewImagePreviewModal
+import com.sportynix.app.presentation.venue.components.WriteReviewBottomSheet
+import java.util.*
 
 @Composable
 fun VenueDetailScreen(
+    venueId: String,
     onNavigateBack: () -> Unit,
-    onNavigateToSlotBooking: (String) -> Unit = {},
+    onNavigateToSportDetail: (venueId: String, sportId: String) -> Unit,
+    onNavigateToBooking: (venueId: String, sportId: String, sportName: String, sportPrice: String, sportImageURL: String) -> Unit,
+    onNavigateToMap: (venueId: String, lat: Double, lng: Double, name: String, location: String, rating: Int, image: String) -> Unit,
+    onNavigateToLeagueDetail: (String) -> Unit = {},
+    onNavigateToTournamentDetail: (String) -> Unit = {},
     viewModel: VenueViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
     val isDark = isSystemInDarkTheme()
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
+    val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val cardBg = if (isDark) Color(0xFF1E262C) else Color.White
+    val borderClr = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
 
-    val venue = state.venue
+    val intVenueId = remember(venueId) { venueId.toIntOrNull() ?: 1 }
+
+    LaunchedEffect(intVenueId) {
+        if (state.venueId != intVenueId) {
+            viewModel.initVenue(intVenueId)
+        }
+    }
+
+    val venue = state.venueData ?: VenueDto(
+        id = venueId,
+        name = "Loading Venue...",
+        description = "Loading venue details...",
+        sportType = null,
+        location = "",
+        address = "",
+        county = null,
+        postalCode = null,
+        contactNumber = null,
+        emailAddress = null,
+        website = null,
+        pricePerHour = null,
+        rating = 5.0f,
+        reviewCount = 0,
+        imageUrl = null,
+        imageUrlSecure = null,
+        imageUrlsList = null,
+        galleryImagesList = null,
+        availableSlots = null,
+        amenities = null,
+        terms = null,
+        isFeatured = null,
+        distance = null,
+        distanceDisplay = null,
+        sports = null,
+        openingHours = null,
+        reviewsList = null,
+        ratingBreakdown = null
+    )
+
+    val tabs = listOf("Sports", "Gallery", "Info", "Events")
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = bgClr
     ) { paddingValues ->
-        if (state.isLoading && venue == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = primaryGreen)
-            }
-        } else if (venue == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Venue details unavailable", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(bottom = 60.dp)
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                // ── 1. HERO HEADER IMAGE ──
+                // 1. BANNER IMAGE
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp)
-                    ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(260.dp)) {
                         AsyncImage(
-                            model = venue.imageUrl.ifEmpty { "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800" },
-                            contentDescription = venue.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                            model = venue.imageUrlSecure ?: venue.imageUrl ?: "",
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
-
-                        // Top Gradient Shader
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(80.dp)
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
-                                    )
-                                )
-                        )
-
-                        // Header Actions (Back & Favorite buttons)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .windowInsetsPadding(WindowInsets.statusBars)
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.55f))
-                                    .clickable { onNavigateBack() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.55f))
-                                    .clickable { viewModel.toggleFavorite() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (state.isFavorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                    contentDescription = "Favorite",
-                                    tint = if (state.isFavorited) Color(0xFFEF4444) else Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
                     }
                 }
 
-                // ── 2. VENUE TITLE & ADDRESS ──
+                // 2. VENUE INFO HEADER
                 item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Rating line
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "Rating",
-                                tint = AccentGold,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(14.dp))
+                            Text("%.1f".format(venue.rating ?: 0f), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            Text("(${venue.reviewCount ?: state.reviews.size} reviews)", fontSize = 13.sp, color = textSecondary)
+                        }
+
+                        Text(venue.name ?: "Venue", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = textSecondary, modifier = Modifier.size(14.dp))
                             Text(
-                                text = "%.1f".format(if (venue.rating == 0f) 5.0f else venue.rating),
+                                text = venue.formattedLocationLine.ifEmpty { venue.address ?: venue.location ?: "" },
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "(${if (venue.reviewCount == 0) 2 else venue.reviewCount} reviews)",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Text(
-                            text = venue.name,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Row(verticalAlignment = Alignment.Top) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = "Location",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .padding(top = 2.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = venue.address.ifEmpty { "Warana Rd, Kalagedihena, Gampaha, Nittambuwa, Gampaha, Western, Sri Lanka 00300" },
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 18.sp
+                                fontWeight = FontWeight.Medium,
+                                color = textSecondary
                             )
                         }
                     }
                 }
 
-                // ── 3. 4-TAB NAVIGATION BAR ──
+                // 3. TAB BAR
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        VenueTab.values().forEach { tab ->
-                            val isSelected = state.activeTab == tab
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier
-                                    .clickable { viewModel.setTab(tab) }
-                                    .padding(vertical = 12.dp, horizontal = 8.dp)
-                            ) {
-                                Text(
-                                    text = tab.name.lowercase().replaceFirstChar { it.uppercase() },
-                                    fontSize = 15.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) primaryGreen else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Box(
+                    Column {
+                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                            tabs.forEachIndexed { idx, tab ->
+                                val tabEnum = VenueTab.values()[idx]
+                                val isSelected = state.selectedTab == tabEnum
+                                Column(
                                     modifier = Modifier
-                                        .width(36.dp)
-                                        .height(3.dp)
-                                        .background(if (isSelected) primaryGreen else Color.Transparent)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── 4. TAB CONTENTS ──
-                item {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    when (state.activeTab) {
-                        VenueTab.SPORTS -> {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                Text(
-                                    text = "Choose Your Games",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(bottom = 14.dp)
-                                )
-
-                                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                    val sportsRows = state.sportsList.chunked(2)
-                                    sportsRows.forEach { rowSports ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                                        ) {
-                                            rowSports.forEach { sport ->
-                                                VenueSportGameCard(
-                                                    sport = sport,
-                                                    onBookClick = { onNavigateToSlotBooking(sport.id.toString()) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                            if (rowSports.size == 1) {
-                                                Spacer(modifier = Modifier.weight(1f))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        VenueTab.GALLERY -> {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                Text(
-                                    text = "Venue Gallery",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(bottom = 12.dp)
-                                )
-
-                                val galleryImages = venue.galleryImages.ifEmpty {
-                                    listOf(
-                                        "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600",
-                                        "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=600",
-                                        "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=600"
-                                    )
-                                }
-
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    galleryImages.chunked(2).forEach { rowImages ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            rowImages.forEach { imgUrl ->
-                                                AsyncImage(
-                                                    model = imgUrl,
-                                                    contentDescription = "Gallery",
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(130.dp)
-                                                        .clip(RoundedCornerShape(16.dp))
-                                                )
-                                            }
-                                            if (rowImages.size == 1) {
-                                                Spacer(modifier = Modifier.weight(1f))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        VenueTab.INFO -> {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                Text(
-                                    text = "Venue Information",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(bottom = 12.dp)
-                                )
-
-                                GlassCard(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(18.dp)
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Text(
-                                            text = "Description",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = primaryGreen
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = venue.description.ifEmpty { "Premium indoor sports complex featuring professional pitches, lighting, and changing rooms." },
-                                            fontSize = 13.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-
-                                        Spacer(modifier = Modifier.height(14.dp))
-
-                                        Text(
-                                            text = "Amenities",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = primaryGreen
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-
-                                        val amenities = venue.amenities.ifEmpty { listOf("Parking", "Night Lights", "Changing Rooms", "Cafeteria") }
-                                        Row(
-                                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            amenities.forEach { am ->
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(primaryGreen.copy(alpha = 0.12f))
-                                                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                                                ) {
-                                                    Text(text = am, fontSize = 12.sp, color = primaryGreen, fontWeight = FontWeight.SemiBold)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        VenueTab.EVENTS -> {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .weight(1f)
+                                        .clickable { viewModel.setTab(tabEnum) }
+                                        .padding(vertical = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "Events at This Venue",
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        text = tab,
+                                        fontSize = 15.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) primaryGreen else textSecondary
                                     )
-
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = "Refresh",
-                                        tint = primaryGreen,
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Box(
                                         modifier = Modifier
-                                            .size(20.dp)
-                                            .clickable { viewModel.loadVenueDetails(venue.id) }
+                                            .fillMaxWidth()
+                                            .height(2.5.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(if (isSelected) primaryGreen else Color.Transparent)
                                     )
-                                }
-
-                                // Event Filter Chips
-                                val filterOptions = listOf("All", "Upcoming", "Ongoing", "Past", "Venue Hosted")
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
-                                        .padding(bottom = 14.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    filterOptions.forEach { opt ->
-                                        val isSel = state.eventFilter == opt
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .background(if (isSel) primaryGreen else if (isDark) Color(0xFF1E242B) else Color(0xFFE2E8F0))
-                                                .clickable { viewModel.setEventFilter(opt) }
-                                                .padding(horizontal = 14.dp, vertical = 7.dp)
-                                        ) {
-                                            Text(
-                                                text = opt,
-                                                fontSize = 12.sp,
-                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Events List
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    state.eventsList.forEach { event ->
-                                        GlassCard(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(16.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(14.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(42.dp)
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(primaryGreen.copy(alpha = 0.2f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Shield,
-                                                        contentDescription = null,
-                                                        tint = primaryGreen,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                }
-
-                                                Spacer(modifier = Modifier.width(12.dp))
-
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = event.type,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = primaryGreen
-                                                    )
-                                                    Text(
-                                                        text = event.name,
-                                                        fontSize = 15.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(
-                                                            text = "🏏 ${event.status}",
-                                                            fontSize = 12.sp,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                        )
-                                                        if (!event.startDate.isNullOrBlank()) {
-                                                            Text(
-                                                                text = " • ${event.startDate}",
-                                                                fontSize = 12.sp,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
                                 }
                             }
+                        }
+                        HorizontalDivider(color = borderClr)
+                    }
+                }
+
+                // 4. TAB CONTENT
+                item {
+                    Box(modifier = Modifier.padding(top = 16.dp)) {
+                        when (state.selectedTab) {
+                            VenueTab.SPORTS -> SportsTabContent(
+                                sports = venue.sports ?: emptyList(),
+                                venue = venue,
+                                primaryGreen = primaryGreen,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary,
+                                cardBg = cardBg,
+                                borderClr = borderClr,
+                                onSportClick = { sId -> onNavigateToSportDetail(venueId, sId.toString()) },
+                                onBookNowClick = { sId, name, price, img -> onNavigateToBooking(venueId, sId.toString(), name, price, img) }
+                            )
+                            VenueTab.GALLERY -> GalleryTabContent(
+                                images = venue.galleryImagesList ?: emptyList(),
+                                primaryGreen = primaryGreen,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary,
+                                cardBg = cardBg
+                            )
+                            VenueTab.INFO -> InfoTabContent(
+                                venue = venue,
+                                primaryGreen = primaryGreen,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary,
+                                cardBg = cardBg,
+                                borderClr = borderClr,
+                                isDark = isDark,
+                                onOpenMap = { lat, lng ->
+                                    onNavigateToMap(
+                                        venueId,
+                                        lat,
+                                        lng,
+                                        venue.name ?: "Venue",
+                                        venue.address ?: venue.location ?: "",
+                                        (venue.rating ?: 5f).toInt(),
+                                        venue.imageUrlSecure ?: venue.imageUrl ?: ""
+                                    )
+                                }
+                            )
+                            VenueTab.EVENTS -> EventsTabContent(
+                                events = state.venueEvents,
+                                isLoading = state.eventsLoading,
+                                filter = state.eventFilter,
+                                primaryGreen = primaryGreen,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary,
+                                cardBg = cardBg,
+                                borderClr = borderClr,
+                                onFilterSelect = { viewModel.setEventFilter(it) },
+                                onRefresh = { viewModel.fetchVenueEvents() },
+                                onLeagueClick = onNavigateToLeagueDetail,
+                                onTournamentClick = onNavigateToTournamentDetail
+                            )
                         }
                     }
                 }
 
-                // ── 5. REVIEWS SECTION ──
+                // 5. REVIEWS SECTION
                 item {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(
-                                    text = "Reviews",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "${state.reviewsList.size} reviews",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text("Reviews", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                                Text("${state.reviews.size} reviews", fontSize = 13.sp, color = textSecondary)
                             }
 
                             Button(
-                                onClick = { viewModel.openAddReviewDialog() },
-                                shape = RoundedCornerShape(18.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                onClick = { viewModel.openWriteReviewSheet() },
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = primaryGreen)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.AddCircle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = Color.White
+                                Icon(imageVector = Icons.Default.AddCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add Review", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        // Average Rating Summary Bar
+                        AverageRatingSummaryBar(
+                            reviews = state.reviews,
+                            primaryGreen = primaryGreen,
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary,
+                            cardBg = cardBg,
+                            borderClr = borderClr
+                        )
+
+                        // Review List
+                        if (state.reviews.isEmpty()) {
+                            Text("No reviews yet. Be the first to review!", fontSize = 14.sp, color = textSecondary, modifier = Modifier.padding(vertical = 12.dp))
+                        } else {
+                            state.reviews.forEach { r ->
+                                ReviewCard(
+                                    review = r,
+                                    currentUserId = null,
+                                    onEdit = { viewModel.openWriteReviewSheet(r) },
+                                    onDelete = { r.id?.let { viewModel.deleteReview(it) } },
+                                    onPhotoTap = { urls, idx -> viewModel.openImagePreview(urls, idx) }
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Add Review", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-
-                        // Rating Summary Card
-                        GlassCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 14.dp),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(end = 20.dp)
-                                ) {
-                                    Text(
-                                        text = "5.0",
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Row {
-                                        repeat(5) {
-                                            Icon(
-                                                imageVector = Icons.Default.Star,
-                                                contentDescription = null,
-                                                tint = AccentGold,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "${state.reviewsList.size} reviews",
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                // Star Rating Distribution Bars
-                                Column(modifier = Modifier.weight(1f)) {
-                                    val breakdown = state.ratingBreakdown
-                                    RatingBarRow(starNum = 5, count = breakdown.star5, total = state.reviewsList.size, primaryGreen = primaryGreen)
-                                    RatingBarRow(starNum = 4, count = breakdown.star4, total = state.reviewsList.size, primaryGreen = primaryGreen)
-                                    RatingBarRow(starNum = 3, count = breakdown.star3, total = state.reviewsList.size, primaryGreen = primaryGreen)
-                                    RatingBarRow(starNum = 2, count = breakdown.star2, total = state.reviewsList.size, primaryGreen = primaryGreen)
-                                    RatingBarRow(starNum = 1, count = breakdown.star1, total = state.reviewsList.size, primaryGreen = primaryGreen)
-                                }
-                            }
-                        }
-
-                        // Review Item Cards
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            state.reviewsList.forEach { review ->
-                                VenueReviewItemCard(review = review, primaryGreen = primaryGreen)
+                                Spacer(modifier = Modifier.height(12.dp))
                             }
                         }
                     }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
-        }
 
-        // Add Review Dialog
-        if (state.showAddReviewDialog) {
-            AlertDialog(
-                onDismissRequest = { viewModel.dismissAddReviewDialog() },
-                title = { Text("Write a Review", fontWeight = FontWeight.Bold) },
-                text = {
-                    Column {
-                        Text("Rating", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Row(modifier = Modifier.padding(vertical = 6.dp)) {
-                            (1..5).forEach { star ->
-                                Icon(
-                                    imageVector = if (star <= state.newReviewRating) Icons.Default.Star else Icons.Default.StarBorder,
-                                    contentDescription = null,
-                                    tint = AccentGold,
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clickable { viewModel.updateNewReviewRating(star) }
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = state.newReviewComment,
-                            onValueChange = { viewModel.updateNewReviewComment(it) },
-                            placeholder = { Text("Write your review here...") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = { viewModel.submitReview() },
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
-                        enabled = !state.isSubmittingReview
-                    ) {
-                        Text("Submit")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { viewModel.dismissAddReviewDialog() }) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun VenueSportGameCard(
-    sport: VenueSport,
-    onBookClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val isDark = isSystemInDarkTheme()
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
-
-    GlassCard(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        elevation = 4.dp
-    ) {
-        Column {
-            Box(
+            // FLOATING NAV BUTTONS
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
-            ) {
-                AsyncImage(
-                    model = sport.imageUrl.ifEmpty {
-                        when {
-                            sport.name.contains("badminton", true) -> "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=500"
-                            sport.name.contains("football", true) -> "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=500"
-                            else -> "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=500"
-                        }
-                    },
-                    contentDescription = sport.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Price Tag Pill (Top Left)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(primaryGreen)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Rs. ${sport.price}",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = sport.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = AccentGold,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = "0.0 (0 reviews)",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Button(
-                    onClick = onBookClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
-                    contentPadding = PaddingValues(horizontal = 8.dp)
-                ) {
-                    Text("BOOK NOW", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(13.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RatingBarRow(
-    starNum: Int,
-    count: Int,
-    total: Int,
-    primaryGreen: Color
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 1.dp)
-    ) {
-        Text(text = "$starNum", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-        Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(10.dp))
-        Spacer(modifier = Modifier.width(6.dp))
-        val fraction = if (total > 0) count.toFloat() / total.toFloat() else 0f
-        LinearProgressIndicator(
-            progress = { fraction },
-            modifier = Modifier
-                .weight(1f)
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp)),
-            color = primaryGreen,
-            trackColor = Color.Gray.copy(alpha = 0.2f)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(text = "$count", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun VenueReviewItemCard(
-    review: VenueReview,
-    primaryGreen: Color
-) {
-    GlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(primaryGreen.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = review.userName.take(1).uppercase(),
-                            color = primaryGreen,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Text(
-                            text = review.userName,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = review.createdAt.ifEmpty { "Jun 10, 2026" },
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clickable { onNavigateBack() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
 
-                Row {
-                    repeat(5) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = AccentGold,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = review.comment.ifEmpty { "Good for play" },
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            if (review.recommends) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clickable { viewModel.toggleFavorite() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
-                        imageVector = Icons.Default.ThumbUp,
-                        contentDescription = null,
-                        tint = primaryGreen,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Recommends",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = primaryGreen
+                        imageVector = if (state.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (state.isFavorite) Color.Red else Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
+
+            // MODALS
+            if (state.showWriteReviewSheet) {
+                WriteReviewBottomSheet(
+                    titleName = venue.name ?: "Venue",
+                    existingReview = state.editingReview,
+                    onDismiss = { viewModel.dismissWriteReviewSheet() },
+                    onSubmit = { r, c, sTags, cTags, files, rec, keepIds ->
+                        viewModel.submitReview(r, c, rec, sTags + cTags, files, keepIds)
+                    }
+                )
+            }
+
+            if (state.showImagePreview) {
+                ReviewImagePreviewModal(
+                    imageUrls = state.previewImageUrls,
+                    initialIndex = state.previewImageIndex,
+                    onDismiss = { viewModel.dismissImagePreview() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SportsTabContent(
+    sports: List<VenueSportDto>,
+    venue: VenueDto,
+    primaryGreen: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    cardBg: Color,
+    borderClr: Color,
+    onSportClick: (Int) -> Unit,
+    onBookNowClick: (Int, String, String, String) -> Unit
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Choose Your Games", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+
+        if (sports.isEmpty()) {
+            Text("No sports available for this venue.", fontSize = 14.sp, color = textSecondary)
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.heightIn(max = 2000.dp)
+            ) {
+                items(sports) { sport ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(cardBg)
+                            .border(1.dp, borderClr, RoundedCornerShape(16.dp))
+                    ) {
+                        // Sport Image & Price Badge
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .clickable { onSportClick(sport.id) }
+                        ) {
+                            AsyncImage(
+                                model = sport.imageSecure ?: sport.image ?: "",
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .clip(CircleShape)
+                                    .background(primaryGreen)
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text("Rs. ${sport.price ?: "0"}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        // Info
+                        Column(
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .clickable { onSportClick(sport.id) },
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(sport.name ?: "Sport", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(12.dp))
+                                Text("%.1f".format(sport.averageRating ?: 5.0f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                                Text("(${sport.reviewsCount ?: 0} reviews)", fontSize = 11.sp, color = textSecondary)
+                            }
+                        }
+
+                        // BOOK NOW Button
+                        Button(
+                            onClick = {
+                                onBookNowClick(sport.id, sport.name ?: "Sport", "Rs. ${sport.price ?: "0"}", sport.imageSecure ?: sport.image ?: "")
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                .height(38.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = primaryGreen)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("BOOK NOW", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
+                                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GalleryTabContent(
+    images: List<com.sportynix.app.data.remote.dto.VenueGalleryImageDto>,
+    primaryGreen: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    cardBg: Color
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Photo Gallery", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+
+        if (images.isEmpty()) {
+            Text("No gallery photos available.", fontSize = 14.sp, color = textSecondary)
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.heightIn(max = 1000.dp)
+            ) {
+                items(images) { img ->
+                    AsyncImage(
+                        model = img.imageUrlSecure ?: img.imageUrl ?: "",
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp)
+                            .clip(RoundedCornerShape(10.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoTabContent(
+    venue: VenueDto,
+    primaryGreen: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    cardBg: Color,
+    borderClr: Color,
+    isDark: Boolean,
+    onOpenMap: (Double, Double) -> Unit
+) {
+    val venueLat = remember(venue) {
+        venue.location?.split(",")?.getOrNull(0)?.trim()?.toDoubleOrNull() ?: 7.118318
+    }
+    val venueLng = remember(venue) {
+        venue.location?.split(",")?.getOrNull(1)?.trim()?.toDoubleOrNull() ?: 80.079777
+    }
+
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // About
+        venue.description?.takeIf { it.isNotBlank() }?.let { desc ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("About", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                Text(desc, fontSize = 14.sp, color = textSecondary, lineHeight = 20.sp)
+            }
+        }
+
+        // Contact Info
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Contact Information", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+
+            venue.contactNumber?.takeIf { it.isNotBlank() }?.let { infoRow(Icons.Default.Phone, "Phone", it, primaryGreen, textPrimary, textSecondary, cardBg, borderClr) }
+            venue.emailAddress?.takeIf { it.isNotBlank() }?.let { infoRow(Icons.Default.Email, "Email", it, primaryGreen, textPrimary, textSecondary, cardBg, borderClr) }
+            venue.website?.takeIf { it.isNotBlank() }?.let { infoRow(Icons.Default.Language, "Website", it, primaryGreen, textPrimary, textSecondary, cardBg, borderClr) }
+            infoRow(Icons.Default.LocationOn, "Location", venue.formattedLocationLine.ifEmpty { venue.address ?: "" }, primaryGreen, textPrimary, textSecondary, cardBg, borderClr)
+        }
+
+        // Opening Hours Table
+        venue.openingHours?.takeIf { it.isNotEmpty() }?.let { hours ->
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Opening Hours", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(cardBg)
+                        .border(1.dp, borderClr, RoundedCornerShape(12.dp))
+                ) {
+                    val days = listOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+                    days.forEachIndexed { idx, day ->
+                        val entry = hours[day]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(day.replaceFirstChar { it.uppercase() }, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                            Text(
+                                text = entry?.displayString ?: "Closed",
+                                fontSize = 14.sp,
+                                color = if (entry?.isClosed == true) Color.Red else textSecondary
+                            )
+                        }
+                        if (idx < days.size - 1) HorizontalDivider(color = borderClr)
+                    }
+                }
+            }
+        }
+
+        // Amenities
+        venue.amenities?.takeIf { it.isNotEmpty() }?.let { amenities ->
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Amenities & Facilities", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.heightIn(max = 400.dp)
+                ) {
+                    items(amenities) { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(primaryGreen.copy(alpha = 0.08f))
+                                .border(1.dp, primaryGreen.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(16.dp))
+                            Text(item, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = textPrimary)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Map Button
+        Button(
+            onClick = { onOpenMap(venueLat, venueLng) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = primaryGreen)
+        ) {
+            Icon(imageVector = Icons.Default.Map, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Open Map & Directions", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun EventsTabContent(
+    events: List<VenueEventItem>,
+    isLoading: Boolean,
+    filter: VenueEventFilter,
+    primaryGreen: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    cardBg: Color,
+    borderClr: Color,
+    onFilterSelect: (VenueEventFilter) -> Unit,
+    onRefresh: () -> Unit,
+    onLeagueClick: (String) -> Unit,
+    onTournamentClick: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Events at This Venue", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+            IconButton(onClick = onRefresh) {
+                Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh", tint = primaryGreen)
+            }
+        }
+
+        // Filter chips
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(VenueEventFilter.values()) { f ->
+                val isSelected = filter == f
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isSelected) primaryGreen else cardBg)
+                        .border(1.dp, if (isSelected) Color.Transparent else borderClr, CircleShape)
+                        .clickable { onFilterSelect(f) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(f.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isSelected) Color.White else textSecondary)
+                }
+            }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = primaryGreen)
+            }
+        } else if (events.isEmpty()) {
+            Text("No events found at this venue.", fontSize = 14.sp, color = textSecondary, modifier = Modifier.padding(vertical = 20.dp))
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                events.forEach { event ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(cardBg)
+                            .border(1.dp, borderClr, RoundedCornerShape(14.dp))
+                            .clickable {
+                                if (event.type == VenueEventType.LEAGUE) onLeagueClick(event.id)
+                                else onTournamentClick(event.id)
+                            }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (event.type == VenueEventType.LEAGUE) primaryGreen.copy(alpha = 0.12f) else Color.Blue.copy(alpha = 0.10f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (event.type == VenueEventType.LEAGUE) Icons.Default.Shield else Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = if (event.type == VenueEventType.LEAGUE) primaryGreen else Color.Blue,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    text = if (event.type == VenueEventType.LEAGUE) "LEAGUE" else "TOURNAMENT",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (event.type == VenueEventType.LEAGUE) primaryGreen else Color.Blue
+                                )
+                                if (event.isVenueHosted) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(primaryGreen)
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("Venue Hosted", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+
+                            Text(event.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            Text("${event.sportType.replaceFirstChar { it.uppercase() }} · ${event.startDate ?: ""}", fontSize = 12.sp, color = textSecondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AverageRatingSummaryBar(
+    reviews: List<com.sportynix.app.data.remote.dto.VenueReviewDto>,
+    primaryGreen: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    cardBg: Color,
+    borderClr: Color
+) {
+    val total = reviews.fold(0.0) { acc, r -> acc + (r.rating ?: 0f) }
+    val avg = if (reviews.isNotEmpty()) total / reviews.size else 0.0
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(cardBg)
+            .border(1.dp, borderClr, RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("%.1f".format(avg), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                for (star in 1..5) {
+                    Icon(
+                        imageVector = if (star <= avg.toInt()) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = null,
+                        tint = Color(0xFFEAB308),
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+            Text("${reviews.size} reviews", fontSize = 11.sp, color = textSecondary)
+        }
+
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            (5 downTo 1).forEach { star ->
+                val count = reviews.count { (it.rating ?: 0f).toInt() == star }
+                val ratio = if (reviews.isNotEmpty()) count.toFloat() / reviews.size else 0f
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("$star", fontSize = 11.sp, color = textSecondary, modifier = Modifier.width(10.dp))
+                    Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(8.dp))
+                    LinearProgressIndicator(
+                        progress = { ratio },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(CircleShape),
+                        color = primaryGreen,
+                        trackColor = borderClr
+                    )
+                    Text("$count", fontSize = 11.sp, color = textSecondary, modifier = Modifier.width(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun infoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String,
+    primaryGreen: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    cardBg: Color,
+    borderClr: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(cardBg)
+            .border(1.dp, borderClr, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(primaryGreen.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(18.dp))
+        }
+
+        Column {
+            Text(title, fontSize = 12.sp, color = textSecondary)
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
         }
     }
 }

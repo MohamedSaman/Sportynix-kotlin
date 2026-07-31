@@ -21,6 +21,10 @@ sealed class Screen(val route: String) {
     object SportDetail : Screen("sport_detail/{sportId}/{venueId}") {
         fun createRoute(sportId: String, venueId: String) = "sport_detail/$sportId/$venueId"
     }
+    object VenueMap : Screen("venue_map?venueId={venueId}&lat={lat}&lng={lng}&name={name}&location={location}&rating={rating}&image={image}") {
+        fun createRoute(venueId: String, lat: Double, lng: Double, name: String, location: String, rating: Int, image: String) =
+            "venue_map?venueId=$venueId&lat=$lat&lng=$lng&name=${java.net.URLEncoder.encode(name, "UTF-8")}&location=${java.net.URLEncoder.encode(location, "UTF-8")}&rating=$rating&image=${java.net.URLEncoder.encode(image, "UTF-8")}"
+    }
     object VenueSlotPicker : Screen("venue_slot_picker/{venueId}") {
         fun createRoute(venueId: String) = "booking/$venueId/1"
     }

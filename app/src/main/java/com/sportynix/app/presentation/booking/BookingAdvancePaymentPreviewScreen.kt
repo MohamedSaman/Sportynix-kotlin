@@ -1,18 +1,15 @@
 package com.sportynix.app.presentation.booking
 
-import android.annotation.SuppressLint
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,160 +17,178 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.sportynix.app.data.remote.dto.ConfirmedBookingDto
+import com.sportynix.app.data.remote.dto.PaymentCheckoutResponseDto
 import com.sportynix.app.presentation.theme.SportynixGreenPrimary
-import kotlinx.coroutines.delay
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun BookingAdvancePaymentPreviewScreen(
-    checkoutUrl: String,
-    orderId: String,
-    amount: Double,
+    checkoutResponse: PaymentCheckoutResponseDto?,
     onNavigateBack: () -> Unit,
-    onPaymentVerified: () -> Unit,
-    viewModel: BookingViewModel = hiltViewModel()
+    onNavigateToConfirmation: (List<ConfirmedBookingDto>, String) -> Unit,
+    viewModel: BookingPaymentViewModel = hiltViewModel()
 ) {
     val isDark = isSystemInDarkTheme()
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
+    val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
 
-    var showExitDialog by remember { mutableStateOf(false) }
-    var paymentStatusText by remember { mutableStateOf("Verifying your payment with bank gateway...") }
-    var isVerifying by remember { mutableStateOf(true) }
+    var isWebViewOpen by remember { mutableStateOf(false) }
 
-    // Intercept back button to show warning dialog
-    BackHandler {
-        showExitDialog = true
+    val checkoutUrl = remember(checkoutResponse) {
+        val raw = checkoutResponse?.checkout?.url ?: ""
+        when {
+            raw.startsWith("http://") || raw.startsWith("https://") -> raw
+            raw.startsWith("//") -> "https:$raw"
+            raw.isNotEmpty() -> "https://$raw"
+            else -> ""
+        }
     }
 
-    // Poll payment status every 3 seconds
-    LaunchedEffect(orderId) {
-        while (isVerifying) {
-            delay(3000)
-            viewModel.pollPaymentStatus(
-                orderId = orderId,
-                onSuccess = {
-                    isVerifying = false
-                    onPaymentVerified()
-                },
-                onFailure = { msg ->
-                    paymentStatusText = msg
-                }
-            )
-        }
+    val orderId = remember(checkoutResponse) {
+        checkoutResponse?.payment?.orderId ?: ""
     }
 
     Scaffold(
-        topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { showExitDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Secure Checkout",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("SSL 256-bit", fontSize = 11.sp, color = primaryGreen, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = bgClr
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            AndroidView(
-                factory = { context ->
-                    WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        webViewClient = object : WebViewClient() {
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-                            }
-                        }
-                        loadUrl(checkoutUrl.ifEmpty { "https://api.sportynix.com" })
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Status Bar Banner
-            Box(
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            Column(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .background(if (isDark) Color(0xFF1E262C) else Color(0xFFF1F5F9))
-                    .padding(14.dp)
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(primaryGreen.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = primaryGreen, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = paymentStatusText,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
+                    Icon(
+                        imageVector = when (viewModel.step) {
+                            PaymentStep.SUCCESS -> Icons.Default.CheckCircle
+                            PaymentStep.FAILED, PaymentStep.EXPIRED -> Icons.Default.Error
+                            else -> Icons.Default.Lock
+                        },
+                        contentDescription = null,
+                        tint = when (viewModel.step) {
+                            PaymentStep.SUCCESS -> primaryGreen
+                            PaymentStep.FAILED, PaymentStep.EXPIRED -> Color.Red
+                            else -> primaryGreen
+                        },
+                        modifier = Modifier.size(40.dp)
                     )
                 }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = when (viewModel.step) {
+                        PaymentStep.SUCCESS -> "Payment Confirmed!"
+                        PaymentStep.FAILED -> "Payment Failed"
+                        PaymentStep.VERIFYING -> "Verifying Payment"
+                        else -> "Secure Payment"
+                    },
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = viewModel.statusMessage,
+                    fontSize = 14.sp,
+                    color = textSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(30.dp))
+
+                if (viewModel.step == PaymentStep.READY || viewModel.step == PaymentStep.WAITING) {
+                    Button(
+                        onClick = {
+                            if (checkoutUrl.isNotEmpty()) {
+                                isWebViewOpen = true
+                            } else {
+                                viewModel.pollStatus(orderId) { list ->
+                                    onNavigateToConfirmation(list, "Normal")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryGreen)
+                    ) {
+                        Text("Open Hosted Payment Gateway", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.pollStatus(orderId) { list ->
+                                onNavigateToConfirmation(list, "Normal")
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Check Payment Status", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    }
+                } else if (viewModel.step == PaymentStep.VERIFYING) {
+                    CircularProgressIndicator(color = primaryGreen)
+                }
+            }
+
+            // Hosted Checkout WebView Dialog
+            if (isWebViewOpen && checkoutUrl.isNotEmpty()) {
+                AlertDialog(
+                    onDismissRequest = {
+                        isWebViewOpen = false
+                        viewModel.pollStatus(orderId) { list ->
+                            onNavigateToConfirmation(list, "Normal")
+                        }
+                    },
+                    confirmButton = {},
+                    text = {
+                        Box(modifier = Modifier.fillMaxWidth().height(500.dp)) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    WebView(ctx).apply {
+                                        settings.javaScriptEnabled = true
+                                        webViewClient = object : WebViewClient() {
+                                            override fun onPageFinished(view: WebView?, url: String?) {
+                                                super.onPageFinished(view, url)
+                                                if (url?.contains("/return/") == true || url?.contains("/status/") == true) {
+                                                    isWebViewOpen = false
+                                                    viewModel.pollStatus(orderId) { list ->
+                                                        onNavigateToConfirmation(list, "Normal")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        loadUrl(checkoutUrl)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                )
             }
         }
-    }
-
-    if (showExitDialog) {
-        AlertDialog(
-            onDismissRequest = { showExitDialog = false },
-            title = { Text("Exit Payment?", fontWeight = FontWeight.Bold) },
-            text = { Text("Your slot will remain reserved until the timer expires. Are you sure you want to leave?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showExitDialog = false
-                        onNavigateBack()
-                    }
-                ) {
-                    Text("Exit", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) {
-                    Text("Stay Here", color = primaryGreen, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
     }
 }

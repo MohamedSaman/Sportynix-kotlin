@@ -6,8 +6,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
+import com.sportynix.app.data.remote.api.BookingApiService
 import com.sportynix.app.data.remote.api.UserApiService
-import com.sportynix.app.data.remote.dto.BlockedUserDto
 import com.sportynix.app.domain.model.Booking
 import com.sportynix.app.domain.repository.BookingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,7 +26,9 @@ enum class BookingSortOption(val label: String, val description: String) {
 
 data class BookingHistoryUiState(
     val bookings: List<Booking> = emptyList(),
+    val countsMap: Map<String, Int> = emptyMap(),
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
     val selectedBookingType: Int = 0, // 0 = Normal, 1 = Permanent
     val selectedFilter: String = "All",
@@ -46,7 +48,7 @@ data class BookingHistoryUiState(
 
     // Team State
     val bookingForTeam: Booking? = null,
-    val userTeams: List<Pair<Int, String>> = emptyList(), // ID, Name
+    val userTeams: List<Pair<Int, String>> = emptyList(),
     val isLoadingTeams: Boolean = false,
     val showTeamSheet: Boolean = false,
     val isAssigningTeam: Boolean = false
@@ -55,46 +57,72 @@ data class BookingHistoryUiState(
 @HiltViewModel
 class BookingHistoryViewModel @Inject constructor(
     private val bookingRepository: BookingRepository,
+    private val bookingApiService: BookingApiService,
     private val userApiService: UserApiService
 ) : ViewModel() {
 
     var uiState by mutableStateOf(BookingHistoryUiState())
         private set
 
+    private val cacheMap = mutableMapOf<String, Pair<Long, List<Booking>>>()
+    private val CACHE_DURATION_MS = 5 * 60 * 1000L // 5 minutes
+
     init {
-        loadBookings()
+        loadBookings(forceRefresh = false)
     }
 
-    fun loadBookings() {
-        uiState = uiState.copy(isLoading = true, errorMessage = null)
+    fun loadBookings(forceRefresh: Boolean = false) {
+        val typeStr = if (uiState.selectedBookingType == 1) "permanent" else "normal"
+        val filterStr = uiState.selectedFilter.lowercase().replace(" ", "_")
+        val cacheKey = "$typeStr:$filterStr"
+
+        val cached = cacheMap[cacheKey]
+        val now = System.currentTimeMillis()
+        if (!forceRefresh && cached != null && (now - cached.first) < CACHE_DURATION_MS) {
+            uiState = uiState.copy(bookings = sortBookings(cached.second, uiState.sortOption), isLoading = false)
+            return
+        }
+
+        uiState = uiState.copy(isLoading = !forceRefresh, isRefreshing = forceRefresh, errorMessage = null)
         viewModelScope.launch {
-            when (val res = bookingRepository.fetchBookings()) {
+            when (val res = bookingRepository.fetchUserBookings(typeStr, if (filterStr == "all") null else filterStr)) {
                 is ApiResult.Success -> {
-                    uiState = uiState.copy(bookings = res.data, isLoading = false)
+                    val sorted = sortBookings(res.data, uiState.sortOption)
+                    cacheMap[cacheKey] = Pair(now, res.data)
+                    uiState = uiState.copy(bookings = sorted, isLoading = false, isRefreshing = false)
                 }
                 is ApiResult.ServerError -> {
-                    uiState = uiState.copy(errorMessage = res.message, isLoading = false)
+                    uiState = uiState.copy(errorMessage = res.message, isLoading = false, isRefreshing = false)
                 }
                 is ApiResult.Error -> {
-                    uiState = uiState.copy(errorMessage = res.message, isLoading = false)
+                    uiState = uiState.copy(errorMessage = res.message, isLoading = false, isRefreshing = false)
                 }
                 else -> {
-                    uiState = uiState.copy(isLoading = false)
+                    uiState = uiState.copy(isLoading = false, isRefreshing = false)
                 }
             }
         }
     }
 
+    fun invalidateCache() {
+        cacheMap.clear()
+    }
+
     fun setBookingType(type: Int) {
-        uiState = uiState.copy(selectedBookingType = type)
+        if (uiState.selectedBookingType == type) return
+        uiState = uiState.copy(selectedBookingType = type, selectedFilter = "All")
+        loadBookings(forceRefresh = false)
     }
 
     fun setFilter(filter: String) {
+        if (uiState.selectedFilter == filter) return
         uiState = uiState.copy(selectedFilter = filter)
+        loadBookings(forceRefresh = false)
     }
 
     fun setSortOption(option: BookingSortOption) {
-        uiState = uiState.copy(sortOption = option, showSortSheet = false)
+        val sorted = sortBookings(uiState.bookings, option)
+        uiState = uiState.copy(sortOption = option, bookings = sorted, showSortSheet = false)
     }
 
     fun setShowSortSheet(show: Boolean) {
@@ -126,33 +154,22 @@ class BookingHistoryViewModel @Inject constructor(
         uiState = uiState.copy(showQRModal = false, selectedBookingForQR = null, qrCodeUrl = null)
     }
 
-    fun promptCancelBooking(booking: Booking) {
-        uiState = uiState.copy(bookingToCancel = booking, showCancelAlert = true)
-    }
-
-    fun dismissCancelAlert() {
-        uiState = uiState.copy(bookingToCancel = null, showCancelAlert = false)
-    }
-
-    fun confirmCancelBooking() {
-        val booking = uiState.bookingToCancel ?: return
-        uiState = uiState.copy(isCancelling = true, showCancelAlert = false)
-        viewModelScope.launch {
-            val res = if (booking.isPermanent) {
-                bookingRepository.cancelSeriesInt(booking.bookingId)
-            } else {
-                bookingRepository.cancelBookingInt(booking.bookingId)
-            }
-            uiState = uiState.copy(isCancelling = false, bookingToCancel = null)
-            loadBookings()
-        }
-    }
-
     fun openTeamSheet(booking: Booking) {
         uiState = uiState.copy(bookingForTeam = booking, showTeamSheet = true, isLoadingTeams = true)
         viewModelScope.launch {
-            // Fetch user teams
-            uiState = uiState.copy(isLoadingTeams = false, userTeams = listOf(1 to "My Team Alpha", 2 to "Sportynix Strikers"))
+            try {
+                val res = bookingApiService.getMyTeams()
+                if (res.isSuccessful && res.body() != null) {
+                    val json = res.body()!!
+                    val teams = parseTeamsJson(json)
+                    uiState = uiState.copy(isLoadingTeams = false, userTeams = teams)
+                } else {
+                    uiState = uiState.copy(isLoadingTeams = false)
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error fetching teams")
+                uiState = uiState.copy(isLoadingTeams = false)
+            }
         }
     }
 
@@ -165,20 +182,31 @@ class BookingHistoryViewModel @Inject constructor(
         uiState = uiState.copy(isAssigningTeam = true)
         viewModelScope.launch {
             bookingRepository.assignTeamInt(booking.bookingId, teamId)
+            invalidateCache()
             uiState = uiState.copy(isAssigningTeam = false, showTeamSheet = false, bookingForTeam = null)
-            loadBookings()
+            loadBookings(forceRefresh = true)
         }
     }
 
     fun removeTeam(booking: Booking) {
         viewModelScope.launch {
             bookingRepository.removeTeamInt(booking.bookingId)
-            loadBookings()
+            invalidateCache()
+            loadBookings(forceRefresh = true)
         }
     }
 
-    fun parseDate(dateStr: String): Date {
-        if (dateStr.isEmpty() || dateStr == "N/A") return Date(0)
+    private fun sortBookings(list: List<Booking>, option: BookingSortOption): List<Booking> {
+        return when (option) {
+            BookingSortOption.PLAY_DATE_NEWEST -> list.sortedByDescending { parseDate(it.playDateStart) }
+            BookingSortOption.PLAY_DATE_OLDEST -> list.sortedBy { parseDate(it.playDateStart) }
+            BookingSortOption.BOOKED_DATE_LATEST -> list.sortedByDescending { parseDate(it.bookedDate ?: it.createdAt) }
+            BookingSortOption.BOOKED_DATE_OLDEST -> list.sortedBy { parseDate(it.bookedDate ?: it.createdAt) }
+        }
+    }
+
+    private fun parseDate(dateStr: String?): Date {
+        if (dateStr.isNullOrEmpty() || dateStr == "N/A") return Date(0)
         val formats = listOf(
             "yyyy-MM-dd",
             "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ",
@@ -191,10 +219,25 @@ class BookingHistoryViewModel @Inject constructor(
                 val sdf = SimpleDateFormat(fmt, Locale.US)
                 val d = sdf.parse(dateStr)
                 if (d != null) return d
-            } catch (e: Exception) {
-                // continue
-            }
+            } catch (_: Exception) {}
         }
         return Date(0)
+    }
+
+    private fun parseTeamsJson(jsonElement: com.google.gson.JsonElement): List<Pair<Int, String>> {
+        val result = mutableListOf<Pair<Int, String>>()
+        try {
+            if (jsonElement.isJsonArray) {
+                jsonElement.asJsonArray.forEach { elem ->
+                    if (elem.isJsonObject) {
+                        val obj = elem.asJsonObject
+                        val id = if (obj.has("id")) obj.get("id").asInt else 0
+                        val name = if (obj.has("name")) obj.get("name").asString else "Team"
+                        result.add(Pair(id, name))
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return result
     }
 }

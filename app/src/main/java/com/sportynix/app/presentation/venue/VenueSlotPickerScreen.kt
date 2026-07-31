@@ -62,8 +62,9 @@ fun VenueSlotPickerScreen(
                 PrimaryButton(
                     text = if (state.selectedSlot != null) "Proceed to Booking" else "Select a Time Slot",
                     onClick = {
-                        if (state.selectedSlot != null && viewModel.venueId != null) {
-                            onNavigateToBookingSummary(viewModel.venueId, state.selectedSlot!!.id, state.selectedDate)
+                        val vId = viewModel.venueId
+                        if (state.selectedSlot != null && vId != null) {
+                            onNavigateToBookingSummary(vId, state.selectedSlot!!.id, state.selectedDate)
                         }
                     },
                     enabled = state.selectedSlot != null

@@ -73,8 +73,8 @@ fun MainTabScreen(
                 TabItem.BOOKING -> {
                     BookingHistoryScreen(
                         onNavigateBack = { viewModel.selectTab(TabItem.HOME) },
-                        onNavigateToDetail = { bId -> onNavigateToBookingDetail(bId) },
-                        onNavigateToNewBooking = { onNavigateToNewBooking() }
+                        onNavigateToDetail = { booking -> onNavigateToBookingDetail(booking.bookingId.toString()) },
+                        onNavigateToCancel = { booking -> }
                     )
                 }
                 TabItem.HOME -> {

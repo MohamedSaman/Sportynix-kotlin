@@ -5,10 +5,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -18,51 +19,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.sportynix.app.data.remote.dto.QuoteResponseDto
-import com.sportynix.app.presentation.components.GlassCard
+import coil.compose.AsyncImage
+import com.sportynix.app.data.remote.dto.*
+import com.sportynix.app.data.remote.dto.PaymentCheckoutResponseDto
 import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 
 @Composable
 fun BookingSummaryScreen(
-    venueId: String,
-    sportId: String,
-    date: String,
-    slotIds: String,
-    bookingType: String = "Normal",
-    selectedDays: String = "",
+    payload: BookingPayload,
     onNavigateBack: () -> Unit,
-    onNavigateToPaymentPreview: (checkoutUrl: String, orderId: String, amount: Double) -> Unit,
-    onNavigateToConfirmation: () -> Unit,
-    viewModel: BookingViewModel = hiltViewModel()
+    onNavigateToCheckout: (PaymentCheckoutResponseDto) -> Unit,
+    viewModel: BookingSummaryViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
     val isDark = isSystemInDarkTheme()
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
+    val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val cardBg = if (isDark) Color(0xFF1E262C) else Color.White
+    val borderClr = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
 
-    var selectedPaymentOption by remember { mutableStateOf("advance") } // "advance" or "full"
-    var isSubmitting by remember { mutableStateOf(false) }
-
-    LaunchedEffect(venueId, sportId, date, slotIds, selectedPaymentOption) {
-        viewModel.fetchQuote(venueId, sportId, date, slotIds, bookingType, selectedDays, selectedPaymentOption)
+    LaunchedEffect(payload) {
+        viewModel.initSummary(payload)
     }
 
-    val quote = state.quoteResponse ?: QuoteResponseDto(
-        bookingTotal = "800.00",
-        paymentRequired = true,
-        advanceRequired = true,
-        advanceAmount = "400.00",
-        gatewayAmount = "400.00",
-        remainingBalance = "400.00",
-        pointsDiscount = "0.00",
-        acceptedPoints = 0,
-        paymentOption = selectedPaymentOption,
-        paymentMode = "advance_or_full",
-        allowedPaymentOptions = listOf("advance", "full")
-    )
+    val quote = state.quote
+    val bookingTotal = quote?.bookingTotal ?: "%.2f".format(payload.totalPrice)
+    val advanceAmount = quote?.advanceAmount ?: "%.2f".format(payload.totalPrice * 0.5)
+    val gatewayAmount = quote?.gatewayAmount ?: if (state.selectedPaymentOption == "advance") advanceAmount else bookingTotal
+    val remainingBalance = quote?.remainingBalance ?: "0.00"
 
     Scaffold(
         topBar = {
@@ -77,24 +68,16 @@ fun BookingSummaryScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isDark) Color(0xFF1E262C) else Color(0xFFE2E8F0))
+                            .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFE2E8F0))
                             .clickable { onNavigateBack() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = primaryGreen,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = primaryGreen, modifier = Modifier.size(20.dp))
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Text(
-                        text = "Booking Summary",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text("Booking Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.size(40.dp))
                 }
             }
         },
@@ -103,221 +86,233 @@ fun BookingSummaryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .background(cardBg)
+                    .border(1.dp, borderClr)
+                    .padding(16.dp)
             ) {
                 Button(
                     onClick = {
-                        isSubmitting = true
-                        viewModel.confirmBookingOrCheckout(
-                            venueId = venueId,
-                            sportId = sportId,
-                            date = date,
-                            slotIds = slotIds,
-                            bookingType = bookingType,
-                            selectedDays = selectedDays,
-                            paymentOption = selectedPaymentOption,
-                            onPaymentCheckoutReady = { url, orderId, amt ->
-                                isSubmitting = false
-                                onNavigateToPaymentPreview(url, orderId, amt)
-                            },
-                            onDirectConfirmationReady = {
-                                isSubmitting = false
-                                onNavigateToConfirmation()
-                            }
-                        )
+                        viewModel.confirmBooking { checkoutResp ->
+                            onNavigateToCheckout(checkoutResp)
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
-                    enabled = !isSubmitting
+                    enabled = !state.isSubmittingBooking && !state.isLoadingQuote
                 ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
+                    if (state.isSubmittingBooking) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
-                        Text(
-                            text = if (quote.paymentRequired == true) "Proceed to Payment" else "Confirm Booking",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        Text("Confirm & Pay LKR $gatewayAmount", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = bgClr
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── 1. BOOKING OVERVIEW CARD ──
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Booking Overview",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+            // Header Card
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(cardBg)
+                        .border(1.dp, borderClr, RoundedCornerShape(16.dp))
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AsyncImage(
+                        model = payload.sportImageURL,
+                        contentDescription = null,
+                        modifier = Modifier.size(70.dp).clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Date", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(date, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(payload.sportName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(primaryGreen.copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(payload.bookingType, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
+                            }
+                        }
+
+                        Text(payload.venueName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                        Text(payload.bookingDate, fontSize = 12.sp, color = textSecondary)
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Booking Type", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(bookingType, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
-                    }
-                    if (selectedDays.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+
+            // Selected Slots Section
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(cardBg)
+                        .border(1.dp, borderClr, RoundedCornerShape(16.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Selected Slots (${payload.slots.size})", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    payload.slots.forEach { slot ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Recurring Days", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(selectedDays, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(imageVector = Icons.Default.Schedule, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(16.dp))
+                                Text("${slot.startTime} - ${slot.endTime}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                            }
+                            Text("LKR ${"%.2f".format(slot.price)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
                         }
                     }
                 }
             }
 
-            // ── 2. PAYMENT BREAKDOWN CARD ──
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Price & Quote Breakdown",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+            // Payment Option Selector (Advance vs. Full)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Select Payment Option", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (state.selectedPaymentOption == "advance") primaryGreen.copy(alpha = 0.12f) else cardBg)
+                                .border(if (state.selectedPaymentOption == "advance") 1.5.dp else 1.dp, if (state.selectedPaymentOption == "advance") primaryGreen else borderClr, RoundedCornerShape(14.dp))
+                                .clickable { viewModel.setPaymentOption("advance") }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            RadioButton(
+                                selected = state.selectedPaymentOption == "advance",
+                                onClick = { viewModel.setPaymentOption("advance") },
+                                colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
+                            )
+                            Column {
+                                Text("Pay Advance Only", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                                Text("LKR $advanceAmount", fontSize = 12.sp, color = primaryGreen)
+                            }
+                        }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Total Booking Price", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("LKR ${quote.bookingTotal ?: "0.00"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Advance Required", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("LKR ${quote.advanceAmount ?: "0.00"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Remaining Balance (at Venue)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("LKR ${quote.remainingBalance ?: "0.00"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Online Gateway Amount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        Text("LKR ${quote.gatewayAmount ?: "0.00"}", fontSize = 18.sp, fontWeight = FontWeight.Black, color = primaryGreen)
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (state.selectedPaymentOption == "full") primaryGreen.copy(alpha = 0.12f) else cardBg)
+                                .border(if (state.selectedPaymentOption == "full") 1.5.dp else 1.dp, if (state.selectedPaymentOption == "full") primaryGreen else borderClr, RoundedCornerShape(14.dp))
+                                .clickable { viewModel.setPaymentOption("full") }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            RadioButton(
+                                selected = state.selectedPaymentOption == "full",
+                                onClick = { viewModel.setPaymentOption("full") },
+                                colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
+                            )
+                            Column {
+                                Text("Pay Full Amount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                                Text("LKR $bookingTotal", fontSize = 12.sp, color = primaryGreen)
+                            }
+                        }
                     }
                 }
             }
 
-            // ── 3. PAYMENT OPTION SELECTOR ──
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Select Payment Option",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
+            // Payment Breakdown Card
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(cardBg)
+                        .border(1.dp, borderClr, RoundedCornerShape(16.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Payment Summary", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (selectedPaymentOption == "advance") primaryGreen.copy(alpha = 0.12f) else Color.Transparent)
-                            .border(
-                                width = 1.dp,
-                                color = if (selectedPaymentOption == "advance") primaryGreen else MaterialTheme.colorScheme.outlineVariant,
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                            .clickable { selectedPaymentOption = "advance" }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedPaymentOption == "advance",
-                            onClick = { selectedPaymentOption = "advance" },
-                            colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("Pay Advance Only", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Text("Pay LKR ${quote.advanceAmount ?: "400.00"} now online, balance at venue.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Subtotal", fontSize = 14.sp, color = textSecondary)
+                        Text("LKR $bookingTotal", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                    }
+
+                    if (quote?.discountAmount != null && quote.discountAmount != "0.00") {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Discount", fontSize = 14.sp, color = textSecondary)
+                            Text("-LKR ${quote.discountAmount}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(color = borderClr)
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (selectedPaymentOption == "full") primaryGreen.copy(alpha = 0.12f) else Color.Transparent)
-                            .border(
-                                width = 1.dp,
-                                color = if (selectedPaymentOption == "full") primaryGreen else MaterialTheme.colorScheme.outlineVariant,
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                            .clickable { selectedPaymentOption = "full" }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedPaymentOption == "full",
-                            onClick = { selectedPaymentOption = "full" },
-                            colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("Pay Full Amount", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Text("Pay LKR ${quote.bookingTotal ?: "800.00"} now online.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Total Booking Amount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        Text("LKR $bookingTotal", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Payable Now", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
+                        Text("LKR $gatewayAmount", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
+                    }
+
+                    if (remainingBalance != "0.00") {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Remaining Balance (Pay at venue)", fontSize = 13.sp, color = textSecondary)
+                            Text("LKR $remainingBalance", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
                         }
                     }
                 }
+            }
+
+            // Saved Cards Option
+            if (state.savedCards.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Select Saved Card", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(state.savedCards) { card ->
+                                val isSelected = state.selectedSavedCard?.id == card.id
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (isSelected) primaryGreen.copy(alpha = 0.12f) else cardBg)
+                                        .border(1.dp, if (isSelected) primaryGreen else borderClr, RoundedCornerShape(12.dp))
+                                        .clickable { viewModel.setSelectedSavedCard(card) }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.CreditCard, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(20.dp))
+                                    Text("•••• ${card.last4 ?: "4242"}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(40.dp))
             }
         }
     }

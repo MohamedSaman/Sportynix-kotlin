@@ -7,45 +7,57 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
-import com.sportynix.app.data.repository.ProfileRepository
-import com.sportynix.app.domain.model.RatingBreakdown
+import com.sportynix.app.data.mapper.toDomain
+import com.sportynix.app.data.remote.api.LeagueApiService
+import com.sportynix.app.data.remote.api.TournamentApiService
+import com.sportynix.app.data.remote.dto.*
 import com.sportynix.app.domain.model.TimeSlot
 import com.sportynix.app.domain.model.Venue
-import com.sportynix.app.domain.model.VenueReview
-import com.sportynix.app.domain.model.VenueSport
 import com.sportynix.app.domain.repository.VenueRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
 import javax.inject.Inject
 
 enum class VenueTab { SPORTS, GALLERY, INFO, EVENTS }
+enum class VenueEventFilter(val label: String) { ALL("All"), UPCOMING("Upcoming"), ONGOING("Ongoing"), PAST("Past"), VENUE_HOSTED("Venue Hosted") }
+enum class VenueEventType { LEAGUE, TOURNAMENT }
 
 data class VenueEventItem(
     val id: String,
+    val type: VenueEventType,
     val name: String,
-    val type: String,
+    val sportType: String,
+    val startDate: String? = null,
+    val endDate: String? = null,
     val status: String,
-    val startDate: String? = null
+    val logo: String? = null,
+    val banner: String? = null,
+    val isVenueHosted: Boolean = false,
+    val leaguePayload: LeagueDto? = null,
+    val tournamentPayload: TournamentDto? = null
 )
 
 data class VenueUiState(
+    val venueId: Int = 0,
+    val venueData: VenueDto? = null,
     val venue: Venue? = null,
-    val activeTab: VenueTab = VenueTab.SPORTS,
-    val eventFilter: String = "All",
-    val isFavorited: Boolean = false,
-    val sportsList: List<VenueSport> = emptyList(),
-    val eventsList: List<VenueEventItem> = emptyList(),
-    val reviewsList: List<VenueReview> = emptyList(),
-    val sportReviews: List<VenueReview> = emptyList(),
-    val ratingBreakdown: RatingBreakdown = RatingBreakdown(star5 = 2),
-    val showAddReviewDialog: Boolean = false,
-    val newReviewRating: Int = 5,
-    val newReviewComment: String = "",
-    val newReviewRecommends: Boolean = true,
-    val isSubmittingReview: Boolean = false,
+    val selectedTab: VenueTab = VenueTab.SPORTS,
+    val isFavorite: Boolean = false,
+    val favoriteId: Int? = null,
+    val isFavoriteLoading: Boolean = false,
+    val reviews: List<VenueReviewDto> = emptyList(),
+    val venueEvents: List<VenueEventItem> = emptyList(),
+    val eventsLoading: Boolean = false,
+    val eventFilter: VenueEventFilter = VenueEventFilter.ALL,
+    val showWriteReviewSheet: Boolean = false,
+    val editingReview: VenueReviewDto? = null,
+    val showImagePreview: Boolean = false,
+    val previewImageUrls: List<String> = emptyList(),
+    val previewImageIndex: Int = 0,
     val selectedSlot: TimeSlot? = null,
-    val selectedDate: String = "2026-07-28",
+    val selectedDate: String = "2026-07-31",
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
@@ -53,143 +65,41 @@ data class VenueUiState(
 @HiltViewModel
 class VenueViewModel @Inject constructor(
     private val venueRepository: VenueRepository,
-    private val profileRepository: ProfileRepository,
+    private val leagueApiService: LeagueApiService,
+    private val tournamentApiService: TournamentApiService,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     var state by mutableStateOf(VenueUiState())
         private set
 
-    val venueId: String? = savedStateHandle.get<String>("venueId")
+    val navVenueId: String? = savedStateHandle.get<String>("venueId")
+    val venueId: String? get() = navVenueId ?: state.venueId.takeIf { it != 0 }?.toString()
 
     init {
-        venueId?.let { loadVenueDetails(it) }
+        navVenueId?.toIntOrNull()?.let { id ->
+            initVenue(id)
+        }
     }
 
-    fun setTab(tab: VenueTab) {
-        state = state.copy(activeTab = tab)
-    }
-
-    fun setEventFilter(filter: String) {
-        state = state.copy(eventFilter = filter)
+    fun initVenue(id: Int) {
+        state = state.copy(venueId = id)
+        fetchDetails(id)
+        checkFavoriteStatus(id)
+        fetchVenueEvents(id)
     }
 
     fun loadVenueDetails(id: String) {
-        viewModelScope.launch {
-            state = state.copy(isLoading = true, errorMessage = null)
-            when (val result = venueRepository.getVenueById(id)) {
-                is ApiResult.Success -> {
-                    val venueData = result.data
-                    val defaultSports = if (venueData.sports.isNotEmpty()) venueData.sports else listOf(
-                        VenueSport(id = 1, name = "Badminton", price = "Rs 1500/hr", rating = 5.0f, reviewsCount = 2),
-                        VenueSport(id = 2, name = "Futsal", price = "Rs 3000/hr", rating = 4.8f, reviewsCount = 1)
-                    )
-                    val defaultEvents = listOf(
-                        VenueEventItem(id = "1", name = "Internal League 2026", type = "League", status = "Upcoming", startDate = "15 Aug 2026"),
-                        VenueEventItem(id = "2", name = "Super Smash Tournament", type = "Tournament", status = "Open Registration", startDate = "20 Aug 2026")
-                    )
-                    val defaultReviews = if (venueData.reviewsList.isNotEmpty()) venueData.reviewsList else listOf(
-                        VenueReview(id = 1, userName = "Naveed", userAvatar = null, rating = 5.0f, createdAt = "2 days ago", comment = "Excellent court surface!", recommends = true)
-                    )
-
-                    val isFav = checkIsFavorited(id)
-
-                    state = state.copy(
-                        venue = venueData,
-                        isFavorited = isFav,
-                        isLoading = false,
-                        sportsList = defaultSports,
-                        eventsList = defaultEvents,
-                        reviewsList = defaultReviews,
-                        ratingBreakdown = if (venueData.reviewsList.isNotEmpty()) venueData.ratingBreakdown else RatingBreakdown(star5 = 2)
-                    )
-                }
-                is ApiResult.Error -> {
-                    state = state.copy(isLoading = false, errorMessage = result.message)
-                }
-                else -> {
-                    state = state.copy(isLoading = false)
-                }
-            }
-        }
+        val intId = id.toIntOrNull() ?: 1
+        initVenue(intId)
     }
 
-    private suspend fun checkIsFavorited(id: String): Boolean {
-        val favs = profileRepository.getFavorites().getOrNull()
-        return favs?.any { it.venue?.id == id } == true
+    fun setTab(tab: VenueTab) {
+        state = state.copy(selectedTab = tab)
     }
 
-    fun toggleFavorite() {
-        val id = venueId ?: return
-        val current = state.isFavorited
-        state = state.copy(isFavorited = !current)
-        viewModelScope.launch {
-            try {
-                if (current) {
-                    val favs = profileRepository.getFavorites().getOrNull()
-                    val favItem = favs?.find { it.venue?.id == id }
-                    if (favItem != null) {
-                        profileRepository.removeFavorite(favItem.id)
-                    }
-                } else {
-                    profileRepository.addFavoriteVenue(id)
-                }
-            } catch (_: Exception) {
-                state = state.copy(isFavorited = current)
-            }
-        }
-    }
-
-    fun openAddReviewDialog() {
-        state = state.copy(showAddReviewDialog = true)
-    }
-
-    fun dismissAddReviewDialog() {
-        state = state.copy(
-            showAddReviewDialog = false,
-            newReviewRating = 5,
-            newReviewComment = "",
-            newReviewRecommends = true
-        )
-    }
-
-    fun updateNewReviewRating(rating: Int) {
-        state = state.copy(newReviewRating = rating)
-    }
-
-    fun updateNewReviewComment(comment: String) {
-        state = state.copy(newReviewComment = comment)
-    }
-
-    fun updateNewReviewRecommends(recommends: Boolean) {
-        state = state.copy(newReviewRecommends = recommends)
-    }
-
-    fun submitReview() {
-        val id = venueId ?: return
-        val comment = state.newReviewComment.trim()
-        if (comment.isEmpty()) return
-
-        viewModelScope.launch {
-            state = state.copy(isSubmittingReview = true)
-            val newReview = VenueReview(
-                id = (System.currentTimeMillis() % 100000).toInt(),
-                userName = "You",
-                userAvatar = null,
-                rating = state.newReviewRating.toFloat(),
-                createdAt = "Just now",
-                comment = comment,
-                recommends = state.newReviewRecommends
-            )
-            val updatedList = listOf(newReview) + state.reviewsList
-            state = state.copy(
-                reviewsList = updatedList,
-                isSubmittingReview = false,
-                showAddReviewDialog = false,
-                newReviewComment = "",
-                newReviewRating = 5
-            )
-        }
+    fun setEventFilter(filter: VenueEventFilter) {
+        state = state.copy(eventFilter = filter)
     }
 
     fun selectSlot(slot: TimeSlot) {
@@ -198,5 +108,203 @@ class VenueViewModel @Inject constructor(
 
     fun selectDate(date: String) {
         state = state.copy(selectedDate = date)
+    }
+
+    fun openWriteReviewSheet(review: VenueReviewDto? = null) {
+        state = state.copy(showWriteReviewSheet = true, editingReview = review)
+    }
+
+    fun dismissWriteReviewSheet() {
+        state = state.copy(showWriteReviewSheet = false, editingReview = null)
+    }
+
+    fun openImagePreview(urls: List<String>, index: Int) {
+        state = state.copy(showImagePreview = true, previewImageUrls = urls, previewImageIndex = index)
+    }
+
+    fun dismissImagePreview() {
+        state = state.copy(showImagePreview = false)
+    }
+
+    fun fetchDetails(id: Int = state.venueId) {
+        if (id == 0) return
+        viewModelScope.launch {
+            state = state.copy(isLoading = true, errorMessage = null)
+            when (val result = venueRepository.fetchVenueDetailsDto(id)) {
+                is ApiResult.Success -> {
+                    val dto = result.data
+                    state = state.copy(
+                        venueData = dto,
+                        venue = dto.toDomain(),
+                        isLoading = false
+                    )
+                    fetchReviews(id)
+                }
+                is ApiResult.Error -> {
+                    state = state.copy(isLoading = false, errorMessage = result.message)
+                }
+                else -> state = state.copy(isLoading = false)
+            }
+        }
+    }
+
+    fun fetchReviews(id: Int = state.venueId) {
+        if (id == 0) return
+        viewModelScope.launch {
+            when (val res = venueRepository.fetchVenueReviews(id)) {
+                is ApiResult.Success -> {
+                    state = state.copy(reviews = res.data)
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun toggleFavorite() {
+        val id = state.venueId
+        if (id == 0 || state.isFavoriteLoading) return
+
+        val wasOn = state.isFavorite
+        state = state.copy(isFavorite = !wasOn, isFavoriteLoading = true)
+
+        viewModelScope.launch {
+            if (wasOn && state.favoriteId != null) {
+                when (venueRepository.removeFavorite(state.favoriteId!!)) {
+                    is ApiResult.Success -> {
+                        state = state.copy(favoriteId = null, isFavoriteLoading = false)
+                    }
+                    else -> {
+                        state = state.copy(isFavorite = wasOn, isFavoriteLoading = false)
+                    }
+                }
+            } else {
+                when (val res = venueRepository.addFavorite("venue", venueId = id)) {
+                    is ApiResult.Success -> {
+                        state = state.copy(favoriteId = res.data.id, isFavoriteLoading = false)
+                    }
+                    else -> {
+                        state = state.copy(isFavorite = wasOn, isFavoriteLoading = false)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun checkFavoriteStatus(id: Int) {
+        viewModelScope.launch {
+            when (val res = venueRepository.checkVenueFavorite(id)) {
+                is ApiResult.Success -> {
+                    res.data?.let { favId ->
+                        state = state.copy(isFavorite = true, favoriteId = favId)
+                    }
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun submitReview(
+        rating: Double,
+        comment: String,
+        wouldRecommend: Boolean,
+        categories: List<String>,
+        imageFiles: List<File>,
+        keepPhotoIds: List<Int>
+    ) {
+        val id = state.venueId
+        if (id == 0) return
+        val editingId = state.editingReview?.id
+
+        viewModelScope.launch {
+            dismissWriteReviewSheet()
+            when (venueRepository.submitVenueReview(
+                venueId = id,
+                rating = rating,
+                comment = comment,
+                wouldRecommend = wouldRecommend,
+                categories = categories,
+                imageFiles = imageFiles,
+                reviewId = editingId,
+                keepPhotoIds = if (editingId != null) keepPhotoIds else null
+            )) {
+                is ApiResult.Success -> {
+                    fetchDetails(id)
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun deleteReview(reviewId: Int) {
+        val id = state.venueId
+        if (id == 0) return
+        viewModelScope.launch {
+            when (venueRepository.deleteVenueReview(id, reviewId)) {
+                is ApiResult.Success -> {
+                    fetchDetails(id)
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun fetchVenueEvents(id: Int = state.venueId) {
+        if (id == 0) return
+        viewModelScope.launch {
+            state = state.copy(eventsLoading = true)
+            val itemsList = mutableListOf<VenueEventItem>()
+            val venueIdStr = id.toString()
+
+            try {
+                val leagues = leagueApiService.getLeagues(venueId = venueIdStr)
+                leagues.forEach { l ->
+                    itemsList.add(
+                        VenueEventItem(
+                            id = l.id,
+                            type = VenueEventType.LEAGUE,
+                            name = l.name,
+                            sportType = l.sport,
+                            startDate = l.startDate,
+                            endDate = l.endDate,
+                            status = l.status,
+                            logo = l.logoUrl,
+                            banner = l.bannerUrl,
+                            isVenueHosted = false,
+                            leaguePayload = l,
+                            tournamentPayload = null
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error fetching venue leagues")
+            }
+
+            try {
+                val tournaments = tournamentApiService.getTournaments(venueId = venueIdStr)
+                tournaments.forEach { t ->
+                    itemsList.add(
+                        VenueEventItem(
+                            id = t.id,
+                            type = VenueEventType.TOURNAMENT,
+                            name = t.title,
+                            sportType = t.sport,
+                            startDate = t.startDate,
+                            endDate = null,
+                            status = "Open",
+                            logo = null,
+                            banner = null,
+                            isVenueHosted = false,
+                            leaguePayload = null,
+                            tournamentPayload = t
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error fetching venue tournaments")
+            }
+
+            itemsList.sortByDescending { it.startDate ?: "" }
+            state = state.copy(venueEvents = itemsList, eventsLoading = false)
+        }
     }
 }

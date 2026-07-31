@@ -197,11 +197,25 @@ fun NavGraph(
         composable(
             route = Screen.VenueDetail.route,
             arguments = listOf(navArgument("venueId") { type = NavType.StringType })
-        ) {
-            VenueDetailScreen(
+        ) { backStackEntry ->
+            val venueId = backStackEntry.arguments?.getString("venueId") ?: ""
+            com.sportynix.app.presentation.venue.VenueDetailScreen(
+                venueId = venueId,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToSlotBooking = { venueId ->
-                    navController.navigate(Screen.Booking.createRoute(venueId, "1"))
+                onNavigateToSportDetail = { vId, sId ->
+                    navController.navigate(Screen.SportDetail.createRoute(sId, vId))
+                },
+                onNavigateToBooking = { vId, sId, _, _, _ ->
+                    navController.navigate(Screen.Booking.createRoute(vId, sId))
+                },
+                onNavigateToMap = { vId, lat, lng, name, loc, rating, img ->
+                    navController.navigate(Screen.VenueMap.createRoute(vId, lat, lng, name, loc, rating, img))
+                },
+                onNavigateToLeagueDetail = { leagueId ->
+                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId))
+                },
+                onNavigateToTournamentDetail = { tournamentId ->
+                    navController.navigate(Screen.TournamentDetail.createRoute(tournamentId))
                 }
             )
         }
@@ -215,13 +229,43 @@ fun NavGraph(
         ) { backStackEntry ->
             val sportId = backStackEntry.arguments?.getString("sportId") ?: ""
             val venueId = backStackEntry.arguments?.getString("venueId") ?: ""
-            SportDetailScreen(
+            com.sportynix.app.presentation.venue.SportDetailScreen(
                 sportId = sportId,
                 venueId = venueId,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToSlotPicker = { id ->
-                    navController.navigate(Screen.Booking.createRoute(venueId, sportId))
+                onNavigateToBooking = { vId, sId, _, _, _ ->
+                    navController.navigate(Screen.Booking.createRoute(vId, sId))
                 }
+            )
+        }
+
+        composable(
+            route = Screen.VenueMap.route,
+            arguments = listOf(
+                navArgument("venueId") { type = NavType.StringType; defaultValue = "1" },
+                navArgument("lat") { type = NavType.FloatType; defaultValue = 7.118318f },
+                navArgument("lng") { type = NavType.FloatType; defaultValue = 80.079777f },
+                navArgument("name") { type = NavType.StringType; defaultValue = "Venue" },
+                navArgument("location") { type = NavType.StringType; defaultValue = "" },
+                navArgument("rating") { type = NavType.IntType; defaultValue = 5 },
+                navArgument("image") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val lat = backStackEntry.arguments?.getFloat("lat")?.toDouble() ?: 7.118318
+            val lng = backStackEntry.arguments?.getFloat("lng")?.toDouble() ?: 80.079777
+            val name = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("name") ?: "Venue", "UTF-8")
+            val location = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("location") ?: "", "UTF-8")
+            val rating = backStackEntry.arguments?.getInt("rating") ?: 5
+            val image = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("image") ?: "", "UTF-8")
+
+            com.sportynix.app.presentation.venue.ComplexMapView(
+                complexName = name,
+                complexLocation = location,
+                complexRating = rating,
+                complexImageURL = image,
+                latitude = lat,
+                longitude = lng,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -269,20 +313,45 @@ fun NavGraph(
             val date = backStackEntry.arguments?.getString("date") ?: ""
             val slotIds = backStackEntry.arguments?.getString("slotIds") ?: ""
             val bookingType = backStackEntry.arguments?.getString("bookingType") ?: "Normal"
-            val selectedDays = backStackEntry.arguments?.getString("selectedDays") ?: ""
-            com.sportynix.app.presentation.booking.BookingSummaryScreen(
-                venueId = venueId,
-                sportId = sportId,
-                date = date,
-                slotIds = slotIds,
+            val selectedDays = backStackEntry.arguments?.getString("selectedDays")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+
+            val slotsList = slotIds.split(",").mapNotNull { key ->
+                val parts = key.split("-")
+                if (parts.size >= 2) {
+                    com.sportynix.app.data.remote.dto.BookingSlotInfo(
+                        startTime = parts[0],
+                        endTime = parts[1],
+                        displayStart = parts[0],
+                        displayEnd = parts[1],
+                        duration = 60,
+                        price = 500.0
+                    )
+                } else null
+            }
+
+            val payload = com.sportynix.app.data.remote.dto.BookingPayload(
+                sportId = sportId.toIntOrNull() ?: 1,
+                sportName = "Sport",
+                sportPrice = "500.00",
+                sportImageURL = "",
+                venueId = venueId.toIntOrNull() ?: 1,
+                venueName = "Sportynix Venue",
+                venueAddress = "Location",
                 bookingType = bookingType,
+                bookingDate = date,
                 selectedDays = selectedDays,
+                slots = slotsList,
+                totalPrice = slotsList.sumOf { it.price }
+            )
+
+            com.sportynix.app.presentation.booking.BookingSummaryScreen(
+                payload = payload,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToPaymentPreview = { checkoutUrl, orderId, amount ->
-                    navController.navigate(Screen.BookingAdvancePaymentPreview.createRoute(orderId, amount, checkoutUrl))
-                },
-                onNavigateToConfirmation = {
-                    navController.navigate(Screen.BookingConfirmation.route)
+                onNavigateToCheckout = { checkoutResp ->
+                    val orderId = checkoutResp.payment?.orderId ?: "ORD123"
+                    val amount = checkoutResp.payment?.amount ?: 500.0
+                    val url = checkoutResp.checkout?.url ?: ""
+                    navController.navigate(Screen.BookingAdvancePaymentPreview.createRoute(orderId, amount, url))
                 }
             )
         }
@@ -298,26 +367,91 @@ fun NavGraph(
             val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
             val amount = backStackEntry.arguments?.getFloat("amount")?.toDouble() ?: 0.0
             val checkoutUrl = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("checkoutUrl") ?: "", "UTF-8")
+
             com.sportynix.app.presentation.booking.BookingAdvancePaymentPreviewScreen(
-                checkoutUrl = checkoutUrl,
-                orderId = orderId,
-                amount = amount,
+                checkoutResponse = com.sportynix.app.data.remote.dto.PaymentCheckoutResponseDto(
+                    checkout = com.sportynix.app.data.remote.dto.PaymentCheckoutUrlDto(url = checkoutUrl),
+                    payment = com.sportynix.app.data.remote.dto.PaymentOrderInfoDto(orderId = orderId, amount = amount, purpose = "advance"),
+                    bookings = emptyList(),
+                    reservationExpiresAt = null
+                ),
                 onNavigateBack = { navController.popBackStack() },
-                onPaymentVerified = {
-                    navController.navigate(Screen.BookingConfirmation.route)
+                onNavigateToConfirmation = { confirmedBookings, type ->
+                    navController.navigate(Screen.BookingConfirmation.route) {
+                        popUpTo(Screen.Booking.route) { inclusive = true }
+                    }
                 }
             )
         }
 
         composable(Screen.BookingConfirmation.route) {
             com.sportynix.app.presentation.booking.BookingConfirmationScreen(
-                onHome = {
+                bookings = emptyList(),
+                bookingType = "Normal",
+                onNavigateToHome = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
                 },
-                onNavigateToDetails = { bookingId ->
+                onNavigateToBookingDetail = { bookingId ->
                     navController.navigate(Screen.BookingDetail.createRoute(bookingId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.BookingCancellationReview.route,
+            arguments = listOf(
+                navArgument("bookingId") { type = NavType.StringType },
+                navArgument("cancellationMode") { type = NavType.StringType; defaultValue = "single" }
+            )
+        ) { backStackEntry ->
+            val bookingId = backStackEntry.arguments?.getString("bookingId")?.toIntOrNull() ?: 1
+            val cancellationMode = backStackEntry.arguments?.getString("cancellationMode") ?: "single"
+
+            com.sportynix.app.presentation.booking.BookingCancellationReviewScreen(
+                bookingId = bookingId,
+                cancellationMode = cancellationMode,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToBookingDetail = { id ->
+                    navController.navigate(Screen.BookingDetail.createRoute(id.toString()))
+                },
+                onNavigateToBookingHistory = {
+                    navController.navigate(Screen.BookingHistory.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.BookingHistory.route) {
+            com.sportynix.app.presentation.booking.BookingHistoryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { booking ->
+                    navController.navigate(Screen.BookingDetail.createRoute(booking.bookingId.toString()))
+                },
+                onNavigateToCancel = { booking ->
+                    navController.navigate(Screen.BookingCancellationReview.createRoute(booking.bookingId.toString(), if (booking.isPermanent) "series" else "single"))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.BookingDetail.route,
+            arguments = listOf(navArgument("bookingId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
+            com.sportynix.app.presentation.booking.BookingDetailScreen(
+                bookingId = bookingId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToCancel = { booking, mode ->
+                    navController.navigate(Screen.BookingCancellationReview.createRoute(booking.bookingId.toString(), mode))
+                },
+                onNavigateToCheckout = { checkoutResp ->
+                    val orderId = checkoutResp.payment?.orderId ?: "ORD123"
+                    val amount = checkoutResp.payment?.amount ?: 500.0
+                    val url = checkoutResp.checkout?.url ?: ""
+                    navController.navigate(Screen.BookingAdvancePaymentPreview.createRoute(orderId, amount, url))
                 }
             )
         }
@@ -405,52 +539,7 @@ fun NavGraph(
             AboutScreen(onNavigateBack = { navController.popBackStack() })
         }
 
-        composable(Screen.BookingHistory.route) {
-            BookingHistoryScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToDetail = { bookingId ->
-                    navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString()))
-                }
-            )
-        }
 
-        composable(
-            route = Screen.BookingDetail.route,
-            arguments = listOf(navArgument("bookingId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
-            com.sportynix.app.presentation.booking.BookingDetailScreen(
-                bookingId = bookingId,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToCancellationReview = { bId, mode ->
-                    navController.navigate(Screen.BookingCancellationReview.createRoute(bId, mode))
-                },
-                onNavigateToPayBalance = { bId, amt ->
-                    navController.navigate(Screen.BookingAdvancePaymentPreview.createRoute(bId, amt, ""))
-                }
-            )
-        }
-
-        composable(
-            route = Screen.BookingCancellationReview.route,
-            arguments = listOf(
-                navArgument("bookingId") { type = NavType.StringType },
-                navArgument("cancellationMode") { type = NavType.StringType; defaultValue = "single" }
-            )
-        ) { backStackEntry ->
-            val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
-            val cancellationMode = backStackEntry.arguments?.getString("cancellationMode") ?: "single"
-            com.sportynix.app.presentation.booking.BookingCancellationReviewScreen(
-                bookingId = bookingId,
-                cancellationMode = cancellationMode,
-                onNavigateBack = { navController.popBackStack() },
-                onCancellationCompleted = {
-                    navController.navigate(Screen.BookingHistory.route) {
-                        popUpTo(Screen.Home.route)
-                    }
-                }
-            )
-        }
 
         composable(Screen.Favorites.route) {
             FavoritesScreen(

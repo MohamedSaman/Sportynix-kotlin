@@ -16,7 +16,8 @@ interface TournamentApiService {
     @GET("api/tournaments/")
     suspend fun getTournaments(
         @Query("search") search: String? = null,
-        @Query("sport") sport: String? = null
+        @Query("sport") sport: String? = null,
+        @Query("venue_id") venueId: String? = null
     ): List<TournamentDto>
 
     @GET("api/tournaments/{id}/")

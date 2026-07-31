@@ -14,7 +14,8 @@ interface LeagueApiService {
     @GET("api/league/leagues/")
     suspend fun getLeagues(
         @Query("search") search: String? = null,
-        @Query("sport") sport: String? = null
+        @Query("sport") sport: String? = null,
+        @Query("venue_id") venueId: String? = null
     ): List<LeagueDto>
 
     @GET("api/league/leagues/{id}/")

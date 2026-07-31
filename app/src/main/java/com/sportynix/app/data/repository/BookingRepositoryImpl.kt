@@ -445,6 +445,52 @@ class BookingRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun fetchSportsForVenue(venueId: Int): ApiResult<List<VenueSportDto>> {
+        return try {
+            val response = apiService.fetchSportsForVenue(venueId)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.ServerError(response.code(), "Failed to fetch sports for venue")
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(message = e.localizedMessage ?: "Error fetching sports")
+        }
+    }
+
+    override suspend fun fetchMyTeams(): ApiResult<List<BookingTeamData>> {
+        return try {
+            val response = apiService.getMyTeams()
+            if (response.isSuccessful && response.body() != null) {
+                val json = response.body()!!
+                val result = mutableListOf<BookingTeamData>()
+                val parseTeam = { obj: com.google.gson.JsonObject ->
+                    val id = if (obj.has("id")) obj.get("id").asInt else null
+                    val name = if (obj.has("name") && !obj.get("name").isJsonNull) obj.get("name").asString else null
+                    val count = if (obj.has("members_count") && !obj.get("members_count").isJsonNull) obj.get("members_count").asInt else 0
+                    if (id != null) BookingTeamData(id, name, count) else null
+                }
+                if (json.isJsonArray) {
+                    json.asJsonArray.forEach { elem ->
+                        if (elem.isJsonObject) parseTeam(elem.asJsonObject)?.let { result.add(it) }
+                    }
+                } else if (json.isJsonObject) {
+                    val obj = json.asJsonObject
+                    if (obj.has("results") && obj.get("results").isJsonArray) {
+                        obj.get("results").asJsonArray.forEach { elem ->
+                            if (elem.isJsonObject) parseTeam(elem.asJsonObject)?.let { result.add(it) }
+                        }
+                    }
+                }
+                ApiResult.Success(result)
+            } else {
+                ApiResult.ServerError(response.code(), "Failed to fetch teams")
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(message = e.localizedMessage ?: "Error fetching teams")
+        }
+    }
+
     private fun parseAPIBookingsJson(jsonElement: JsonElement): List<APIBooking> {
         return try {
             val listType = object : TypeToken<List<APIBooking>>() {}.type

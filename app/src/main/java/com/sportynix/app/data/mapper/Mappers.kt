@@ -128,7 +128,7 @@ fun VenueDto.toDomain(): Venue {
     val galleryList = galleryImagesList?.mapNotNull { it.imageUrl } ?: imageList
     return Venue(
         id = id,
-        name = name,
+        name = name.orEmpty(),
         description = description.orEmpty(),
         sportType = sportType ?: "GENERAL",
         location = location.orEmpty(),
@@ -154,7 +154,7 @@ fun VenueDto.toEntity(): VenueEntity {
     val firstImage = imageUrlsList?.firstOrNull() ?: imageUrl.orEmpty()
     return VenueEntity(
         id = id,
-        name = name,
+        name = name.orEmpty(),
         description = description.orEmpty(),
         sportType = sportType ?: "GENERAL",
         location = location.orEmpty(),
@@ -214,7 +214,7 @@ fun APIBooking.toDomain(): Booking {
         isPermanent = isPermanent == true,
         permanentSourceId = permanentSourceId ?: permanentSource?.id,
         imageURL = image ?: "",
-        qrCode = qrCode == true,
+        qrCode = qrCode != null && qrCode != false && qrCode != "false",
         venueId = venueId,
         sportId = sportId,
         reviewId = review?.id ?: reviewId,

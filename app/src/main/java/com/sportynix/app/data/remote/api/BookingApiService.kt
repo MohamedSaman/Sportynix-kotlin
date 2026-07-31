@@ -19,6 +19,12 @@ interface BookingApiService {
     @GET("api/my-bookings/{id}/")
     suspend fun getBookingDetail(@Path("id") id: Int): Response<APIBooking>
 
+    @GET("api/bookings/{id}/")
+    suspend fun getBookingDetailFallback(@Path("id") id: Int): Response<APIBooking>
+
+    @GET("api/my-bookings/{id}/payments/")
+    suspend fun getBookingPayments(@Path("id") id: Int): Response<JsonElement>
+
     @GET("api/my-bookings/{id}/qr_code/")
     suspend fun getBookingQRCode(@Path("id") id: Int): Response<QrCodeResponseDto>
 
@@ -29,6 +35,11 @@ interface BookingApiService {
         @Query("date") date: String,
         @Query("exclude_current_user_holds") excludeCurrentUserHolds: Boolean? = null
     ): Response<AvailableSlotsResponse>
+
+    @GET("api/venues/{venueId}/sports/")
+    suspend fun fetchSportsForVenue(
+        @Path("venueId") venueId: Int
+    ): Response<List<VenueSportDto>>
 
     @POST("api/sports/{sportId}/permanent_availability/")
     suspend fun fetchPermanentAvailability(
@@ -48,6 +59,9 @@ interface BookingApiService {
     @POST("api/bookings/")
     suspend fun createBookingRaw(@Body body: Map<String, Any>): Response<JsonElement>
 
+    @POST("api/bookings/payment-quote/")
+    suspend fun getPaymentQuote(@Body request: QuoteRequestDto): Response<QuoteResponseDto>
+
     @POST("api/bookings/quote/")
     suspend fun getQuote(@Body request: QuoteRequestDto): Response<QuoteResponseDto>
 
@@ -56,6 +70,9 @@ interface BookingApiService {
 
     @GET("api/payments/{orderId}/status/")
     suspend fun getPaymentStatus(@Path("orderId") orderId: String): Response<PaymentStatusResponseDto>
+
+    @GET("api/saved-cards/")
+    suspend fun getSavedCards(): Response<List<SavedCardDto>>
 
     @POST("api/bookings/{id}/assign_team/")
     suspend fun assignTeam(
@@ -102,4 +119,7 @@ interface BookingApiService {
         @PartMap parts: Map<String, @JvmSuppressWildcards RequestBody>,
         @Part images: List<MultipartBody.Part>
     ): Response<JsonElement>
+
+    @GET("api/teams/")
+    suspend fun getMyTeams(): Response<JsonElement>
 }

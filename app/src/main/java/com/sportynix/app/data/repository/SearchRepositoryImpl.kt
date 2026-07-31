@@ -91,7 +91,7 @@ class SearchRepositoryImpl @Inject constructor(
                         SearchResult(
                             id = venue.id,
                             type = SearchResultType.VENUE,
-                            title = venue.name,
+                            title = venue.name.orEmpty(),
                             subtitle = venue.address ?: venue.location ?: "No address",
                             rating = venue.rating ?: 5.0f,
                             reviews = venue.reviewCount ?: 2,
@@ -161,7 +161,7 @@ class SearchRepositoryImpl @Inject constructor(
                     SearchResult(
                         id = venue.id,
                         type = SearchResultType.VENUE,
-                        title = venue.name,
+                        title = venue.name.orEmpty(),
                         subtitle = venue.address ?: venue.location ?: "No address",
                         rating = venue.rating ?: 5.0f,
                         reviews = venue.reviewCount ?: 2,

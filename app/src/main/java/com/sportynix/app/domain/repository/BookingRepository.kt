@@ -34,4 +34,6 @@ interface BookingRepository {
     suspend fun cancelSeriesInt(id: Int): ApiResult<Unit>
     suspend fun assignTeamInt(id: Int, teamId: Int): ApiResult<Unit>
     suspend fun removeTeamInt(id: Int): ApiResult<Unit>
+    suspend fun fetchSportsForVenue(venueId: Int): ApiResult<List<VenueSportDto>>
+    suspend fun fetchMyTeams(): ApiResult<List<BookingTeamData>>
 }
