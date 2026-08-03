@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +38,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sportynix.app.presentation.components.PrimaryButton
 import com.sportynix.app.presentation.components.SportynixTopBar
@@ -55,13 +58,23 @@ fun OTPVerificationScreen(
 ) {
     val state = viewModel.state
     var countdown by remember { mutableIntStateOf(60) }
+    var lastSubmittedOtp by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     LaunchedEffect(key1 = true) {
         viewModel.effect.collectLatest { effect ->
             when (effect) {
                 is AuthUiEffect.NavigateToHome -> onNavigateToHome()
+                is AuthUiEffect.ShowToast -> Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 else -> {}
             }
+        }
+    }
+
+    LaunchedEffect(state.otpInput, state.isLoading) {
+        if (state.otpInput.length == 6 && !state.isLoading && lastSubmittedOtp != state.otpInput) {
+            lastSubmittedOtp = state.otpInput
+            viewModel.verifyOtp(state.sessionId ?: sessionId, state.otpInput)
         }
     }
 
@@ -115,7 +128,13 @@ fun OTPVerificationScreen(
                     // OTP Box Grid Display
                     BasicTextField(
                         value = state.otpInput,
-                        onValueChange = { if (it.length <= 6) viewModel.onOtpChanged(it) },
+                        onValueChange = { value ->
+                            val digits = value.filter(Char::isDigit).take(6)
+                            if (digits != state.otpInput) {
+                                if (digits.length < 6) lastSubmittedOtp = null
+                                viewModel.onOtpChanged(digits)
+                            }
+                        },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         decorationBox = {
                             Row(
@@ -167,7 +186,10 @@ fun OTPVerificationScreen(
 
                     PrimaryButton(
                         text = "Verify OTP & Continue",
-                        onClick = { viewModel.verifyOtp(sessionId) },
+                        onClick = {
+                            lastSubmittedOtp = state.otpInput
+                            viewModel.verifyOtp(state.sessionId ?: sessionId)
+                        },
                         enabled = state.otpInput.length == 6,
                         isLoading = state.isLoading
                     )
@@ -181,7 +203,11 @@ fun OTPVerificationScreen(
                             fontSize = 14.sp
                         )
                     } else {
-                        TextButton(onClick = { countdown = 60 }) {
+                        TextButton(onClick = {
+                            viewModel.resendOtp(state.sessionId ?: sessionId)
+                            countdown = 60
+                            lastSubmittedOtp = null
+                        }, enabled = !state.isLoading) {
                             Text("Resend OTP", color = SportynixGreenPrimary, fontWeight = FontWeight.Bold)
                         }
                     }

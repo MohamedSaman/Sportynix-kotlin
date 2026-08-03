@@ -33,7 +33,7 @@ fun BookingCancellationReviewScreen(
     onNavigateToBookingHistory: () -> Unit,
     viewModel: BookingCancellationViewModel = hiltViewModel()
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
@@ -164,7 +164,7 @@ fun BookingCancellationReviewScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(booking?.venueName ?: booking?.complexName ?: booking?.venue ?: "Venue", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                Text("${booking?.sportName ?: booking?.sport ?: "Sport"} · ${booking?.date ?: booking?.bookingDate ?: ""}", fontSize = 14.sp, color = textSecondary)
+                Text("${booking?.sportName ?: booking?.sport ?: "Sport"} · ${booking?.date ?: ""}", fontSize = 14.sp, color = textSecondary)
                 Text(booking?.time ?: "${booking?.startTime ?: ""} - ${booking?.endTime ?: ""}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = primaryGreen)
             }
 

@@ -43,10 +43,11 @@ data class TeamItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeamScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    initialTab: Int = 0
 ) {
-    val isDark = isSystemInDarkTheme()
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: My Teams, 1: Join, 2: Invitations
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, 2)) } // 0: My Teams, 1: Join, 2: Invitations
 
     val sampleTeams = remember {
         listOf(

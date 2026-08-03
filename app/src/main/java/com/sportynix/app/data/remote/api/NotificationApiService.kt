@@ -17,10 +17,10 @@ interface NotificationApiService {
         @Query("page_size") pageSize: Int = 10
     ): Response<PaginatedNotificationsDto>
 
-    @POST("api/notifications/{id}/mark_read/")
+    @POST("api/notifications/{id}/mark_as_read/")
     suspend fun markAsRead(@Path("id") id: String): Response<MarkReadResponseDto>
 
-    @POST("api/notifications/mark_all_read/")
+    @POST("api/notifications/mark_all_as_read/")
     suspend fun markAllAsRead(): Response<JsonElement>
 
     @DELETE("api/notifications/{id}/")

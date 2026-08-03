@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -68,7 +69,7 @@ fun CustomGlassHeader(
     unreadMessagesCount: Int = 0,
     unreadNotificationsCount: Int = 0
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val bg = if (isDark) GlassSurfaceDark else GlassSurfaceLight
     val borderCol = if (isDark) GlassBorderDark else GlassBorderLight
     val circleBtnBg = if (isDark) Color(0xFF1E262C) else Color(0xFFE2E8F0)
@@ -140,11 +141,15 @@ fun CustomGlassHeader(
                     modifier = Modifier.scale(pulseScale),
                     contentAlignment = Alignment.Center
                 ) {
-                    val logoRes = if (isDark) R.drawable.logo_white else R.drawable.logo
+                    val logoRes = if (isDark) {
+                        R.drawable.sportynix_logo_dark
+                    } else {
+                        R.drawable.sportynix_logo_light
+                    }
                     Image(
                         painter = painterResource(id = logoRes),
                         contentDescription = "Sportynix Logo",
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier.size(42.dp)
                     )
                 }
 
@@ -186,20 +191,12 @@ fun CustomGlassHeader(
                 // Messages / Chat Button
                 if (onMessagesPress != null) {
                     Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(circleBtnBg)
-                            .border(0.6.dp, borderCol, CircleShape)
-                            .clickable { onMessagesPress() },
+                        modifier = Modifier.size(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ChatBubbleOutline,
-                            contentDescription = "Chat",
-                            tint = accentGreen,
-                            modifier = Modifier.size(19.dp)
-                        )
+                        Box(Modifier.size(42.dp).clip(CircleShape).background(circleBtnBg).border(0.6.dp, borderCol, CircleShape).clickable { onMessagesPress() }, contentAlignment = Alignment.Center) {
+                            Icon(imageVector = Icons.Default.ChatBubbleOutline, contentDescription = "Chat", tint = accentGreen, modifier = Modifier.size(19.dp))
+                        }
 
                         if (unreadMessagesCount > 0) {
                             val msgBadgeText = if (unreadMessagesCount > 99) "99+" else unreadMessagesCount.toString()
@@ -209,6 +206,7 @@ fun CustomGlassHeader(
                                     .offset(x = 3.dp, y = (-3).dp)
                                     .clip(CircleShape)
                                     .background(Color(0xFFEF4444))
+                                    .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
                                     .padding(horizontal = 4.dp, vertical = 1.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -216,6 +214,7 @@ fun CustomGlassHeader(
                                     text = msgBadgeText,
                                     color = Color.White,
                                     fontSize = 9.sp,
+                                    maxLines = 1,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -226,20 +225,12 @@ fun CustomGlassHeader(
                 // Notifications Button
                 if (onNotificationsPress != null) {
                     Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(circleBtnBg)
-                            .border(0.6.dp, borderCol, CircleShape)
-                            .clickable { onNotificationsPress() },
+                        modifier = Modifier.size(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notifications",
-                            tint = accentGreen,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(Modifier.size(42.dp).clip(CircleShape).background(circleBtnBg).border(0.6.dp, borderCol, CircleShape).clickable { onNotificationsPress() }, contentAlignment = Alignment.Center) {
+                            Icon(imageVector = Icons.Default.Notifications, contentDescription = "Notifications", tint = accentGreen, modifier = Modifier.size(20.dp))
+                        }
 
                         if (unreadNotificationsCount > 0) {
                             val notifBadgeText = if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString()
@@ -249,6 +240,7 @@ fun CustomGlassHeader(
                                     .offset(x = 3.dp, y = (-3).dp)
                                     .clip(CircleShape)
                                     .background(Color(0xFFEF4444))
+                                    .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
                                     .padding(horizontal = 4.dp, vertical = 1.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -256,6 +248,7 @@ fun CustomGlassHeader(
                                     text = notifBadgeText,
                                     color = Color.White,
                                     fontSize = 9.sp,
+                                    maxLines = 1,
                                     fontWeight = FontWeight.Bold
                                 )
                             }

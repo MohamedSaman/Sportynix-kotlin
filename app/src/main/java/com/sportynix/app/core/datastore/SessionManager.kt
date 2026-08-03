@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.sportynix.app.presentation.theme.ThemeMode
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "sportynix_session")
 
@@ -28,6 +29,7 @@ class SessionManager @Inject constructor(
         private val KEY_USER_NAME = stringPreferencesKey("user_name")
         private val KEY_IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
         private val KEY_DARK_MODE = booleanPreferencesKey("dark_mode")
+        private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_LANGUAGE = stringPreferencesKey("app_language")
     }
 
@@ -37,7 +39,15 @@ class SessionManager @Inject constructor(
     val userId: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_USER_ID] }
     val userName: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_USER_NAME] }
     val userEmail: Flow<String?> = context.dataStore.data.map { prefs -> prefs[KEY_USER_EMAIL] }
-    val isDarkMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_DARK_MODE] ?: false }
+    // Swift defaults to dark mode on first launch; persist every explicit change.
+    val isDarkMode: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[KEY_DARK_MODE] ?: true }
+    val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
+        prefs[KEY_THEME_MODE]?.let { stored ->
+            ThemeMode.entries.firstOrNull { it.name == stored }
+        } ?: prefs[KEY_DARK_MODE]?.let { legacyDark ->
+            if (legacyDark) ThemeMode.DARK else ThemeMode.LIGHT
+        } ?: ThemeMode.SYSTEM
+    }
 
     suspend fun getAccessTokenSync(): String? {
         return context.dataStore.data.map { prefs -> prefs[KEY_ACCESS_TOKEN] }.firstOrNull()
@@ -72,8 +82,14 @@ class SessionManager @Inject constructor(
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
+        setThemeMode(if (enabled) ThemeMode.DARK else ThemeMode.LIGHT)
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_DARK_MODE] = enabled
+            prefs[KEY_THEME_MODE] = mode.name
+            if (mode == ThemeMode.SYSTEM) prefs.remove(KEY_DARK_MODE)
+            else prefs[KEY_DARK_MODE] = mode == ThemeMode.DARK
         }
     }
 

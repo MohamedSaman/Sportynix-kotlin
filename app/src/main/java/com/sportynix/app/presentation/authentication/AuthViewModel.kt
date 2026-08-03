@@ -58,6 +58,7 @@ class AuthViewModel @Inject constructor(
     val effect = _effect.asSharedFlow()
 
     private var usernameCheckJob: Job? = null
+    private var otpVerificationJob: Job? = null
 
     fun onEmailChanged(email: String) { state = state.copy(emailInput = email, errorMessage = null) }
     fun onPasswordChanged(password: String) { state = state.copy(passwordInput = password, errorMessage = null) }
@@ -153,7 +154,8 @@ class AuthViewModel @Inject constructor(
     }
 
     fun verifyOtp(sessionId: String, otpCode: String = state.otpInput) {
-        viewModelScope.launch {
+        if (state.isLoading || otpVerificationJob?.isActive == true) return
+        otpVerificationJob = viewModelScope.launch {
             state = state.copy(isLoading = true, errorMessage = null)
             when (val result = verifyOtpUseCase.verifySignUpOtp(sessionId, otpCode)) {
                 is ApiResult.Success -> {
@@ -166,6 +168,22 @@ class AuthViewModel @Inject constructor(
                 else -> {
                     state = state.copy(isLoading = false, errorMessage = "OTP Verification failed. Please check code.")
                 }
+            }
+        }
+    }
+
+    fun resendOtp(sessionId: String) {
+        if (state.isLoading) return
+        viewModelScope.launch {
+            state = state.copy(isLoading = true, errorMessage = null)
+            when (val result = verifyOtpUseCase.resendOtp(sessionId)) {
+                is ApiResult.Success -> {
+                    state = state.copy(isLoading = false, sessionId = result.data)
+                    _effect.emit(AuthUiEffect.ShowToast("Verification code sent"))
+                }
+                is ApiResult.Error -> state = state.copy(isLoading = false, errorMessage = result.message)
+                is ApiResult.ServerError -> state = state.copy(isLoading = false, errorMessage = result.message)
+                else -> state = state.copy(isLoading = false, errorMessage = "Could not resend verification code")
             }
         }
     }

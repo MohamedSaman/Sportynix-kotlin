@@ -48,6 +48,11 @@ data class ForgotPasswordResponseDto(
     @SerializedName("message") val message: String?
 )
 
+data class VerifyPasswordResetOtpRequestDto(
+    @SerializedName("email") val email: String,
+    @SerializedName("otp_code") val otpCode: String
+)
+
 data class ResetPasswordRequestDto(
     @SerializedName("email") val email: String,
     @SerializedName("otp_code") val otpCode: String,

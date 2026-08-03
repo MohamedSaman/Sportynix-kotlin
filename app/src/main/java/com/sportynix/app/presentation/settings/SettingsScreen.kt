@@ -117,7 +117,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val isDark = isSystemInDarkTheme()
+    val themeController = LocalThemeController.current
+    val isDark = themeController.isDark
     val backgroundColor = if (isDark) DarkBackground else LightBackground
     val cardColor = if (isDark) DarkSurface else LightSurface
     val borderColor = if (isDark) DarkSurfaceVariant else LightSurfaceVariant
@@ -125,7 +126,6 @@ fun SettingsScreen(
     val textSecondary = if (isDark) TextSecondaryDark else TextSecondaryLight
     val accentGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
 
-    var isDarkMode by remember { mutableStateOf(isDark) }
     var showChangeEmail by remember { mutableStateOf(false) }
     var showChangePassword by remember { mutableStateOf(false) }
     var showDeleteAccountAlert by remember { mutableStateOf(false) }
@@ -196,28 +196,32 @@ fun SettingsScreen(
             SectionHeader("Appearance", Icons.Default.Palette, accentGreen, textPrimary)
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(18.dp),
                 color = cardColor,
                 border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(
-                            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x22F59E0B)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.WbSunny, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
-                        }
-                        Column {
-                            Text("Dark Mode", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
-                            Text(if (isDarkMode) "Dark theme active" else "Light theme active", fontSize = 13.sp, color = textSecondary)
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("App theme", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ThemeMode.entries.forEach { mode ->
+                            val selected = themeController.mode == mode
+                            Surface(
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).clickable { themeController.setMode(mode) },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (selected) accentGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) accentGreen else borderColor)
+                            ) {
+                                Box(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
+                                    Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.SemiBold, color = if (selected) Color.White else textSecondary)
+                                }
+                            }
                         }
                     }
-                    Switch(checked = isDarkMode, onCheckedChange = { isDarkMode = it }, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = accentGreen))
+                    Text(
+                        if (themeController.mode == ThemeMode.SYSTEM) "Follows your device appearance" else "${themeController.mode.name.lowercase().replaceFirstChar { it.uppercase() }} theme active",
+                        fontSize = 13.sp,
+                        color = textSecondary
+                    )
                 }
             }
 

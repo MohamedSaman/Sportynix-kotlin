@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -65,7 +66,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val context = LocalContext.current
     var selectedBottomNav by remember { mutableStateOf("home") }
 
@@ -85,13 +86,15 @@ fun HomeScreen(
         requestDeviceLocation(context, viewModel)
     }
 
-    val sportsCategories = listOf(
-        "Popular" to "🔥",
-        "Football" to "⚽",
-        "Cricket" to "🏏",
-        "Basketball" to "🏀",
-        "Badminton" to "🏸"
-    )
+    val sportsCategories = remember {
+        listOf(
+            HomeSportCategory("Popular", Icons.Default.LocalFireDepartment),
+            HomeSportCategory("Football", Icons.Default.SportsSoccer),
+            HomeSportCategory("Cricket", Icons.Default.SportsCricket),
+            HomeSportCategory("Basketball", Icons.Default.SportsBasketball),
+            HomeSportCategory("Badminton", Icons.Default.SportsTennis)
+        )
+    }
 
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
 
@@ -118,16 +121,7 @@ fun HomeScreen(
     }
 
     val visibleAnnouncements = remember(state.announcements, state.dismissedAnnouncementIds) {
-        val activeList = state.announcements.filter { !state.dismissedAnnouncementIds.contains(it.id) }
-        if (activeList.isNotEmpty()) activeList else listOf(
-            Announcement(
-                id = "def1",
-                title = "Follow Sportynix & Earn 100 Points",
-                subtitle = "Follow our Facebook page and get 100 Sportynix Points.",
-                badge = "REWARD",
-                imageUrl = "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600"
-            )
-        )
+        state.announcements.filterNot { it.id in state.dismissedAnnouncementIds }
     }
 
     Scaffold(
@@ -218,7 +212,8 @@ fun HomeScreen(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        sportsCategories.forEach { (catName, emoji) ->
+                        sportsCategories.forEach { category ->
+                            val catName = category.name
                             val isSelected = state.selectedCategory == catName
                             val chipBg = if (isSelected) {
                                 primaryGreen
@@ -226,15 +221,23 @@ fun HomeScreen(
                                 if (isDark) Color(0xFF1E242B) else Color(0xFFE2E8F0)
                             }
 
-                            Box(
+                            Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(chipBg)
                                     .clickable { viewModel.selectCategory(catName) }
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
+                                Icon(
+                                    imageVector = category.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 Text(
-                                    text = "$emoji $catName",
+                                    text = catName,
                                     fontSize = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
@@ -246,7 +249,7 @@ fun HomeScreen(
 
                 // ── 3. ANNOUNCEMENTS CAROUSEL ──
                 item {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    if (visibleAnnouncements.isNotEmpty()) Column(modifier = Modifier.padding(vertical = 4.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -621,34 +624,7 @@ fun HomeScreen(
                             )
                         }
 
-                        val matchesList = if (state.recentMatches.isNotEmpty()) {
-                            state.recentMatches
-                        } else {
-                            listOf(
-                                LiveMatchSnapshot(
-                                    matchId = 101,
-                                    leagueName = "WebXKey Masters League",
-                                    matchNumber = 10,
-                                    status = "live",
-                                    cricketVariant = "Softball",
-                                    sportType = "cricket",
-                                    team1 = com.sportynix.app.domain.model.LiveMatchTeam(
-                                        id = 1,
-                                        name = "KeyMaster Titans",
-                                        shortName = "KMT",
-                                        score = "164/3 (10.0)"
-                                    ),
-                                    team2 = com.sportynix.app.domain.model.LiveMatchTeam(
-                                        id = 2,
-                                        name = "Cipher Breakers",
-                                        shortName = "CBR",
-                                        score = "73/9 (6.1)"
-                                    ),
-                                    battingTeamId = 2,
-                                    displayMessage = "Cipher Breakers need 92 runs from 23 balls"
-                                )
-                            )
-                        }
+                        val matchesList = state.recentMatches
 
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -797,6 +773,8 @@ fun HomeScreen(
     }
 }
 
+private data class HomeSportCategory(val name: String, val icon: ImageVector)
+
 @Composable
 private fun AnnouncementBannerCard(
     announcement: Announcement,
@@ -876,12 +854,15 @@ private fun AnnouncementBannerCard(
                         )
                     }
 
-                    Text(
-                        text = "⚡Sportynix",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White.copy(alpha = 0.9f)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(15.dp))
+                        Text(
+                            text = "Sportynix",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
                 }
 
                 Column {

@@ -72,7 +72,7 @@ fun SignInScreen(
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     var showPassword by remember { mutableStateOf(false) }
 
     LaunchedEffect(key1 = true) {
@@ -107,7 +107,7 @@ fun SignInScreen(
             Spacer(modifier = Modifier.height(40.dp))
 
             // Animated Logo
-            val logoRes = if (isDark) R.drawable.logo_white else R.drawable.logo
+            val logoRes = if (isDark) R.drawable.sportynix_logo_dark else R.drawable.sportynix_logo_light
             Image(
                 painter = painterResource(id = logoRes),
                 contentDescription = "Sportynix",
@@ -263,7 +263,7 @@ fun SignInScreen(
 
 @Composable
 fun SocialGlassButton(iconRes: Int) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val bg = if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
     val borderCol = if (isDark) GlassBorderDark else GlassBorderLight
 

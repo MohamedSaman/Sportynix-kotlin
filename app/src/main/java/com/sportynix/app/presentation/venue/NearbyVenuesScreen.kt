@@ -51,7 +51,7 @@ fun NearbyVenuesScreen(
 ) {
     val state = viewModel.state
     val context = LocalContext.current
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)

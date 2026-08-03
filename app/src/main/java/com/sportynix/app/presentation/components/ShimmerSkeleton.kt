@@ -25,7 +25,7 @@ fun ShimmerSkeleton(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(16.dp)
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val baseColor = if (isDark) Color(0xFF1E293B) else Color(0xFFE2E8F0)
     val highlightColor = if (isDark) Color(0xFF334155) else Color(0xFFF1F5F9)
 

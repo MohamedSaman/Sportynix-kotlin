@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -58,7 +57,8 @@ fun ProfileScreen(
     val state = viewModel.state
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    val isDark = isSystemInDarkTheme() || state.isDarkTheme
+    val themeController = LocalThemeController.current
+    val isDark = themeController.isDark
     val backgroundColor = if (isDark) DarkBackground else LightBackground
     val cardColor = if (isDark) DarkSurface else LightSurface
     val borderColor = if (isDark) DarkSurfaceVariant else LightSurfaceVariant
@@ -111,7 +111,7 @@ fun ProfileScreen(
                     IconButton(
                         onClick = {
                             rotationAngle += 180f
-                            viewModel.toggleTheme()
+                            themeController.toggle()
                         },
                         modifier = Modifier
                             .size(42.dp)
@@ -185,7 +185,7 @@ fun ProfileScreen(
                                         "${user.firstName.take(1)}${user.lastName.take(1)}".uppercase()
                                     !user?.name.isNullOrBlank() ->
                                         user.name.split(" ").mapNotNull { it.take(1) }.take(2).joinToString("").uppercase()
-                                    else -> "MN"
+                                    else -> "U"
                                 }
                                 Text(
                                     text = initials,
@@ -220,7 +220,7 @@ fun ProfileScreen(
 
                     // Name
                     Text(
-                        text = user?.displayName ?: "Muhammed Nashan",
+                        text = user?.displayName ?: "User",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = textPrimary
@@ -246,7 +246,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = user?.email.takeIf { !it.isNullOrBlank() } ?: "mnashan.dev@gmail.com",
+                            text = user?.email.takeIf { !it.isNullOrBlank() } ?: "No email",
                             fontSize = 14.sp,
                             color = textSecondary
                         )
@@ -609,7 +609,7 @@ private fun ProfilePhotoModal(
                                 "${user.firstName.take(1)}${user.lastName.take(1)}".uppercase()
                             !user?.name.isNullOrBlank() ->
                                 user.name.split(" ").mapNotNull { it.take(1) }.take(2).joinToString("").uppercase()
-                            else -> "MN"
+                            else -> "U"
                         }
                         Text(
                             text = initials,
@@ -632,7 +632,7 @@ private fun ProfilePhotoModal(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = user?.displayName ?: "Muhammed Nashan",
+                            text = user?.displayName ?: "User",
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Bold,
                             color = modalPrimaryText

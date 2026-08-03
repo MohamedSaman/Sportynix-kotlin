@@ -42,7 +42,7 @@ fun MainTabScreen(
     val shouldFocusSearch by viewModel.shouldFocusSearch.collectAsState()
     val pendingBookingId by viewModel.pendingBookingDetailId.collectAsState()
 
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
 
     LaunchedEffect(pendingBookingId) {
@@ -73,7 +73,7 @@ fun MainTabScreen(
                 TabItem.BOOKING -> {
                     BookingHistoryScreen(
                         onNavigateBack = { viewModel.selectTab(TabItem.HOME) },
-                        onNavigateToDetail = { booking -> onNavigateToBookingDetail(booking.bookingId.toString()) },
+                        onNavigateToDetail = { booking -> onNavigateToBookingDetail(booking.bookingId) },
                         onNavigateToCancel = { booking -> }
                     )
                 }

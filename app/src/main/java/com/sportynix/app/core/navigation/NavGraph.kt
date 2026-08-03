@@ -6,7 +6,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.sportynix.app.presentation.authentication.ForgotPasswordEmailScreen
+import com.sportynix.app.presentation.authentication.ForgotPasswordOtpScreen
 import com.sportynix.app.presentation.authentication.OTPVerificationScreen
 import com.sportynix.app.presentation.authentication.ResetPasswordScreen
 import com.sportynix.app.presentation.authentication.SignInScreen
@@ -129,7 +131,21 @@ fun NavGraph(
             ForgotPasswordEmailScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToResetOtp = { sessionId, email ->
-                    navController.navigate(Screen.ResetPassword.createRoute(email))
+                    navController.navigate(Screen.ForgotPasswordOtp.createRoute(email))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.ForgotPasswordOtp.route,
+            arguments = listOf(navArgument("email") { type = NavType.StringType; defaultValue = "" })
+        ) { backStackEntry ->
+            val email = backStackEntry.arguments?.getString("email") ?: ""
+            ForgotPasswordOtpScreen(
+                email = email,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToReset = { resetEmail, otp ->
+                    navController.navigate(Screen.ResetPassword.createRoute(resetEmail, otp))
                 }
             )
         }
@@ -137,12 +153,15 @@ fun NavGraph(
         composable(
             route = Screen.ResetPassword.route,
             arguments = listOf(
-                navArgument("email") { type = NavType.StringType; defaultValue = "" }
+                navArgument("email") { type = NavType.StringType; defaultValue = "" },
+                navArgument("otp") { type = NavType.StringType; defaultValue = "" }
             )
         ) { backStackEntry ->
             val email = backStackEntry.arguments?.getString("email") ?: ""
+            val otp = backStackEntry.arguments?.getString("otp") ?: ""
             ResetPasswordScreen(
                 email = email,
+                otpCode = otp,
                 onNavigateToLogin = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Welcome.route) { inclusive = true }
@@ -438,7 +457,11 @@ fun NavGraph(
 
         composable(
             route = Screen.BookingDetail.route,
-            arguments = listOf(navArgument("bookingId") { type = NavType.StringType })
+            arguments = listOf(navArgument("bookingId") { type = NavType.StringType }),
+            deepLinks = listOf(
+                navDeepLink { uriPattern = "sportynix://booking-detail?id={bookingId}" },
+                navDeepLink { uriPattern = "sportynix://booking?id={bookingId}" }
+            )
         ) { backStackEntry ->
             val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
             com.sportynix.app.presentation.booking.BookingDetailScreen(
@@ -554,8 +577,18 @@ fun NavGraph(
             TeamScreen(onNavigateBack = { navController.popBackStack() })
         }
 
+        composable(Screen.TeamInvitations.route) {
+            TeamScreen(onNavigateBack = { navController.popBackStack() }, initialTab = 2)
+        }
+
         composable(Screen.Notification.route) {
-            NotificationScreen(onNavigateBack = { navController.popBackStack() })
+            NotificationScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToBookingDetail = { navController.navigate(Screen.BookingDetail.createRoute(it.toString())) },
+                onNavigateToBookingHistory = { navController.navigate(Screen.BookingHistory.route) },
+                onNavigateToTeam = { _, invitations -> navController.navigate(if (invitations) Screen.TeamInvitations.route else Screen.Team.route) },
+                onNavigateToPoints = { navController.navigate(Screen.Points.route) }
+            )
         }
 
         composable(Screen.Search.route) {
@@ -606,7 +639,11 @@ fun NavGraph(
 
         composable(
             route = Screen.LeagueDetail.route,
-            arguments = listOf(navArgument("leagueId") { type = NavType.StringType })
+            arguments = listOf(navArgument("leagueId") { type = NavType.StringType }),
+            deepLinks = listOf(
+                navDeepLink { uriPattern = "sportynix://league?id={leagueId}" },
+                navDeepLink { uriPattern = "sportynix://league-detail?id={leagueId}" }
+            )
         ) { backStackEntry ->
             val leagueId = backStackEntry.arguments?.getString("leagueId") ?: ""
             com.sportynix.app.presentation.leagues.LeagueDetailScreen(

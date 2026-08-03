@@ -38,7 +38,7 @@ fun PrimaryButton(
     enabled: Boolean = true,
     isLoading: Boolean = false
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val shape = RoundedCornerShape(16.dp)
 
     val interactionSource = remember { MutableInteractionSource() }

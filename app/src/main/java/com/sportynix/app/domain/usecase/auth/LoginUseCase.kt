@@ -9,8 +9,8 @@ class LoginUseCase @Inject constructor(
     private val repository: AuthRepository
 ) {
     suspend operator fun invoke(email: String, pass: String): ApiResult<User> {
-        if (email.isBlank()) return ApiResult.Error(message = "Email cannot be empty")
-        if (pass.isBlank()) return ApiResult.Error(message = "Password cannot be empty")
+        if (email.isBlank()) return ApiResult.Error(message = "Please enter your email, phone, or username")
+        if (pass.isBlank()) return ApiResult.Error(message = "Please enter your password")
         return repository.login(email.trim(), pass)
     }
 }

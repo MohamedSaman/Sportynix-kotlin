@@ -20,6 +20,7 @@ interface AuthRepository {
     suspend fun verifySignUpOtp(sessionId: String, otpCode: String): ApiResult<User>
     suspend fun resendOtp(sessionId: String): ApiResult<String>
     suspend fun forgotPassword(email: String): ApiResult<String> // Returns sessionId
+    suspend fun verifyPasswordResetOtp(email: String, otpCode: String): ApiResult<Unit>
     suspend fun resetPassword(email: String, otpCode: String, newPass: String, confirmPass: String): ApiResult<Unit>
     suspend fun logout(): ApiResult<Unit>
     fun isLoggedIn(): Flow<Boolean>

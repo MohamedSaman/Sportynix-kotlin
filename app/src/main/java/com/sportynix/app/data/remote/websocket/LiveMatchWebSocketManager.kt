@@ -196,7 +196,7 @@ class LiveMatchWebSocketManager @Inject constructor(
 
         return LiveMatchSnapshot(
             matchId = matchId,
-            leagueId = leagueId ?: 0,
+            leagueId = leagueId.orEmpty(),
             leagueName = leagueName.orEmpty(),
             competitionType = competitionType,
             sourceLabel = sourceLabel,
@@ -204,7 +204,7 @@ class LiveMatchWebSocketManager @Inject constructor(
             cricketVariant = cricketVariant,
             sportType = sportType ?: "cricket",
             team1 = LiveMatchTeam(
-                id = t1?.id ?: 0,
+                id = t1?.id.orEmpty(),
                 name = t1?.name ?: "Team 1",
                 shortName = t1?.shortName ?: "TM1",
                 logo = t1?.logo,
@@ -213,7 +213,7 @@ class LiveMatchWebSocketManager @Inject constructor(
                 overs = t1?.overs
             ),
             team2 = LiveMatchTeam(
-                id = t2?.id ?: 0,
+                id = t2?.id.orEmpty(),
                 name = t2?.name ?: "Team 2",
                 shortName = t2?.shortName ?: "TM2",
                 logo = t2?.logo,

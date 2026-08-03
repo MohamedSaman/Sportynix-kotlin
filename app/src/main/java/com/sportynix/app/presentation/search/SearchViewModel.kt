@@ -36,7 +36,9 @@ class SearchViewModel @Inject constructor(
     var state by mutableStateOf(SearchUiState())
         private set
 
-    private var searchJob: Job? = null
+    private var debounceJob: Job? = null
+    private var requestJob: Job? = null
+    private var requestVersion: Long = 0
 
     init {
         observeRecentSearches()
@@ -70,7 +72,9 @@ class SearchViewModel @Inject constructor(
 
     fun onSearchQueryChanged(query: String) {
         state = state.copy(searchQuery = query)
-        searchJob?.cancel()
+        debounceJob?.cancel()
+        requestJob?.cancel()
+        requestVersion++
 
         if (query.trim().isEmpty()) {
             state = state.copy(searchResults = emptyList(), isLoading = false, errorMessage = null)
@@ -82,7 +86,7 @@ class SearchViewModel @Inject constructor(
             return
         }
 
-        searchJob = viewModelScope.launch {
+        debounceJob = viewModelScope.launch {
             delay(300)
             executeSearch()
         }
@@ -113,19 +117,24 @@ class SearchViewModel @Inject constructor(
     private fun executeSearch() {
         val q = state.searchQuery.trim()
         if (q.length < 3) return
-
-        viewModelScope.launch {
+        requestJob?.cancel()
+        val version = ++requestVersion
+        val filter = state.activeFilter
+        val sportFilter = state.activeSportFilter
+        val sort = state.sortBy
+        val loc = state.userLocation
+        requestJob = viewModelScope.launch {
             state = state.copy(isLoading = true, errorMessage = null)
-            val loc = state.userLocation
             val result = searchRepository.search(
                 query = q,
-                activeFilter = state.activeFilter,
-                sportFilter = state.activeSportFilter,
-                sortBy = state.sortBy,
+                activeFilter = filter,
+                sportFilter = sportFilter,
+                sortBy = sort,
                 latitude = loc?.first,
                 longitude = loc?.second
             )
 
+            if (version != requestVersion || q != state.searchQuery.trim()) return@launch
             when (result) {
                 is ApiResult.Success -> {
                     state = state.copy(searchResults = result.data, isLoading = false, errorMessage = null)

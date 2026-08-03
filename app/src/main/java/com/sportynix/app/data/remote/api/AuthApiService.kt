@@ -15,6 +15,7 @@ import com.sportynix.app.data.remote.dto.UnreadCountsDto
 import com.sportynix.app.data.remote.dto.UserDto
 import com.sportynix.app.data.remote.dto.UsernameCheckResponseDto
 import com.sportynix.app.data.remote.dto.VerifyOtpRequestDto
+import com.sportynix.app.data.remote.dto.VerifyPasswordResetOtpRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -41,12 +42,16 @@ interface AuthApiService {
     suspend fun verifySignUpOtp(@Body request: VerifyOtpRequestDto): Response<AuthResponseDto>
 
     @Headers("No-Auth: true")
-    @POST("api/auth/resend-otp/")
+    @POST("api/auth/resend-signup-otp/")
     suspend fun resendOtp(@Body request: ResendOtpRequestDto): Response<SignUpResponseDto>
 
     @Headers("No-Auth: true")
     @POST("api/auth/forgot-password/")
     suspend fun forgotPassword(@Body request: ForgotPasswordRequestDto): Response<ForgotPasswordResponseDto>
+
+    @Headers("No-Auth: true")
+    @POST("api/auth/verify-password-reset-otp/")
+    suspend fun verifyPasswordResetOtp(@Body request: VerifyPasswordResetOtpRequestDto): Response<Unit>
 
     @Headers("No-Auth: true")
     @POST("api/auth/reset-password/")

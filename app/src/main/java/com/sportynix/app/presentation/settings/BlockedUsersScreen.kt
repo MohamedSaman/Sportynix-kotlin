@@ -91,7 +91,7 @@ fun BlockedUsersScreen(
     onNavigateBack: () -> Unit = {},
     viewModel: BlockedUsersViewModel = hiltViewModel()
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val backgroundColor = if (isDark) DarkBackground else LightBackground
     val cardColor = if (isDark) DarkSurface else LightSurface
     val borderColor = if (isDark) DarkSurfaceVariant else LightSurfaceVariant

@@ -58,8 +58,8 @@ fun WelcomeScreen(
         ) {
             Spacer(modifier = Modifier.height(60.dp))
 
-            val isDark = isSystemInDarkTheme()
-            val logoRes = if (isDark) R.drawable.logo_white else R.drawable.logo
+            val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
+            val logoRes = if (isDark) R.drawable.sportynix_logo_dark else R.drawable.sportynix_logo_light
             Image(
                 painter = painterResource(id = logoRes),
                 contentDescription = "Sportynix Logo",

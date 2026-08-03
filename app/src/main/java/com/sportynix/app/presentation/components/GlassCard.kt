@@ -33,7 +33,7 @@ fun GlassCard(
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val defaultBg = if (isDark) GlassCardDark else GlassCardLight
     val defaultBorder = if (isDark) GlassBorderDark else GlassBorderLight
     val highlightBrush = if (isDark) GlassHighlightGradientDark else GlassHighlightGradientLight

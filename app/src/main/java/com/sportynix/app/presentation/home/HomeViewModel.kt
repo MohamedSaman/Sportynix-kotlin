@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
 import com.sportynix.app.data.remote.api.AuthApiService
 import com.sportynix.app.data.remote.websocket.LiveMatchWebSocketManager
+import com.sportynix.app.presentation.notification.NotificationCountStore
 import com.sportynix.app.domain.model.Announcement
 import com.sportynix.app.domain.model.LiveMatchSnapshot
 import com.sportynix.app.domain.model.Venue
@@ -83,20 +84,30 @@ class HomeViewModel @Inject constructor(
     private val venueRepository: VenueRepository,
     private val announcementRepository: AnnouncementRepository,
     private val authApiService: AuthApiService,
-    private val liveMatchWebSocketManager: LiveMatchWebSocketManager
+    private val liveMatchWebSocketManager: LiveMatchWebSocketManager,
+    private val notificationCountStore: NotificationCountStore
 ) : ViewModel() {
 
     var state by mutableStateOf(HomeUiState())
         private set
 
     private var retryJob: Job? = null
+    private var locationJob: Job? = null
+    private var initialized = false
+    private var lastDashboardRefreshMs = 0L
+    private var lastNearbyRequest: Pair<Double, Double>? = null
 
     init {
         initializeDashboard()
         observeWebSocketMatches()
+        viewModelScope.launch { notificationCountStore.refreshRequests.collect { fetchUnreadCounts() } }
     }
 
     fun initializeDashboard() {
+        val now = System.currentTimeMillis()
+        if (initialized && now - lastDashboardRefreshMs < 5 * 60 * 1000L) return
+        initialized = true
+        lastDashboardRefreshMs = now
         viewModelScope.launch {
             state = state.copy(isLoading = true, errorMessage = null)
             fetchFeaturedVenues()
@@ -126,6 +137,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun refreshAllData() {
+        lastDashboardRefreshMs = System.currentTimeMillis()
         viewModelScope.launch {
             state = state.copy(isRefreshing = true, errorMessage = null)
             fetchFeaturedVenues()
@@ -163,7 +175,12 @@ class HomeViewModel @Inject constructor(
     }
 
     fun fetchNearbyVenues(latitude: Double, longitude: Double) {
-        viewModelScope.launch {
+        val coordinates = latitude to longitude
+        if (lastNearbyRequest == coordinates && locationJob?.isActive == true) return
+        lastNearbyRequest = coordinates
+        locationJob?.cancel()
+        locationJob = viewModelScope.launch {
+            delay(300)
             state = state.copy(isLoadingNearby = true, userLocation = Pair(latitude, longitude), locationPermissionDenied = false)
             when (val result = venueRepository.fetchNearbyVenues(latitude, longitude)) {
                 is ApiResult.Success -> {
@@ -228,5 +245,6 @@ class HomeViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         cancelRetryLoop()
+        locationJob?.cancel()
     }
 }

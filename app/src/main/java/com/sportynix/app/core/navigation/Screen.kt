@@ -10,8 +10,11 @@ sealed class Screen(val route: String) {
             "otp_verification/$sessionId/$phone/$email"
     }
     object ForgotPasswordEmail : Screen("forgot_password_email")
-    object ResetPassword : Screen("reset_password?email={email}") {
-        fun createRoute(email: String) = "reset_password?email=$email"
+    object ForgotPasswordOtp : Screen("forgot_password_otp?email={email}") {
+        fun createRoute(email: String) = "forgot_password_otp?email=${android.net.Uri.encode(email)}"
+    }
+    object ResetPassword : Screen("reset_password?email={email}&otp={otp}") {
+        fun createRoute(email: String, otp: String) = "reset_password?email=${android.net.Uri.encode(email)}&otp=$otp"
     }
     object Home : Screen("home")
     object VenueList : Screen("venue_list")
@@ -62,6 +65,7 @@ sealed class Screen(val route: String) {
     object Search : Screen("search")
     object Favorites : Screen("favorites")
     object Team : Screen("team")
+    object TeamInvitations : Screen("team_invitations")
     object Points : Screen("points")
     object Referrals : Screen("referrals")
     object PaymentMethods : Screen("payment_methods")

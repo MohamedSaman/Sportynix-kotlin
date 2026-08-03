@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
 import com.sportynix.app.domain.usecase.auth.ForgotPasswordUseCase
 import com.sportynix.app.domain.usecase.auth.ResetPasswordUseCase
+import com.sportynix.app.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -34,7 +35,8 @@ sealed class ForgotPasswordUiEffect {
 @HiltViewModel
 class ForgotPasswordViewModel @Inject constructor(
     private val forgotPasswordUseCase: ForgotPasswordUseCase,
-    private val resetPasswordUseCase: ResetPasswordUseCase
+    private val resetPasswordUseCase: ResetPasswordUseCase,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     var state by mutableStateOf(ForgotPasswordUiState())
@@ -49,6 +51,7 @@ class ForgotPasswordViewModel @Inject constructor(
     fun onConfirmPasswordChanged(pass: String) { state = state.copy(confirmPasswordInput = pass, errorMessage = null) }
 
     fun sendResetLink() {
+        if (state.isLoading) return
         viewModelScope.launch {
             state = state.copy(isLoading = true, errorMessage = null)
             when (val result = forgotPasswordUseCase(state.emailInput)) {
@@ -62,6 +65,27 @@ class ForgotPasswordViewModel @Inject constructor(
                 else -> {
                     state = state.copy(isLoading = false, errorMessage = "Failed to send reset link. Please try again.")
                 }
+            }
+        }
+    }
+
+    fun verifyResetOtp(email: String) {
+        val code = state.otpInput.trim()
+        if (code.length != 6 || !code.all(Char::isDigit)) {
+            state = state.copy(errorMessage = "Please enter a valid 6-digit code")
+            return
+        }
+        if (state.isLoading) return
+        viewModelScope.launch {
+            state = state.copy(isLoading = true, errorMessage = null, emailInput = email)
+            when (val result = authRepository.verifyPasswordResetOtp(email.trim(), code)) {
+                is ApiResult.Success -> {
+                    state = state.copy(isLoading = false)
+                    _effect.emit(ForgotPasswordUiEffect.NavigateToReset(state.sessionId.orEmpty(), email.trim(), code))
+                }
+                is ApiResult.Error -> state = state.copy(isLoading = false, errorMessage = result.message)
+                is ApiResult.ServerError -> state = state.copy(isLoading = false, errorMessage = result.message)
+                else -> state = state.copy(isLoading = false, errorMessage = "Could not verify code")
             }
         }
     }

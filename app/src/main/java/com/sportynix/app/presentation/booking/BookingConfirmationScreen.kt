@@ -17,7 +17,7 @@ fun BookingConfirmationScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToBookingDetail: (String) -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
 
     // Prevent back navigation into completed booking flow
     BackHandler {

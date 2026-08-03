@@ -20,7 +20,6 @@ data class ProfileUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
-    val isDarkTheme: Boolean = true,
     val showImageModal: Boolean = false,
     val showPhoneVerifyModal: Boolean = false,
     val phoneInput: String = "",
@@ -159,7 +158,4 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun toggleTheme() {
-        state = state.copy(isDarkTheme = !state.isDarkTheme)
-    }
 }

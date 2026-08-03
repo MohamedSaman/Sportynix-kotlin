@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.collectLatest
 @Composable
 fun ResetPasswordScreen(
     email: String,
+    otpCode: String,
     onNavigateToLogin: () -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: ForgotPasswordViewModel = hiltViewModel()
@@ -47,6 +48,7 @@ fun ResetPasswordScreen(
         if (email.isNotEmpty()) {
             viewModel.onEmailChanged(email)
         }
+        if (otpCode.isNotEmpty()) viewModel.onOtpChanged(otpCode)
         viewModel.effect.collectLatest { effect ->
             when (effect) {
                 is ForgotPasswordUiEffect.NavigateToLogin -> onNavigateToLogin()
@@ -92,17 +94,6 @@ fun ResetPasswordScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    OutlinedTextField(
-                        value = state.otpInput,
-                        onValueChange = viewModel::onOtpChanged,
-                        label = { Text("6-Digit OTP Code") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     OutlinedTextField(
                         value = state.newPasswordInput,
                         onValueChange = viewModel::onNewPasswordChanged,

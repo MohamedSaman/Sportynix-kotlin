@@ -1,7 +1,7 @@
 package com.sportynix.app.domain.model
 
 data class LiveMatchTeam(
-    val id: Int = 0,
+    val id: String = "",
     val name: String = "Team A",
     val shortName: String = "TMA",
     val logo: String? = null,
@@ -11,8 +11,8 @@ data class LiveMatchTeam(
 )
 
 data class LiveMatchSnapshot(
-    val matchId: Int,
-    val leagueId: Int = 0,
+    val matchId: String,
+    val leagueId: String = "",
     val leagueName: String = "",
     val competitionType: String? = null,
     val sourceLabel: String? = null,
@@ -21,7 +21,7 @@ data class LiveMatchSnapshot(
     val sportType: String = "cricket",
     val team1: LiveMatchTeam = LiveMatchTeam(),
     val team2: LiveMatchTeam = LiveMatchTeam(),
-    val battingTeamId: Int? = null,
+    val battingTeamId: String? = null,
     val currentInnings: Int? = null,
     val displayMessage: String? = null,
     val chaseStatus: String? = null,

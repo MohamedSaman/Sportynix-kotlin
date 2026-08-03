@@ -31,7 +31,7 @@ fun LiquidTabBar(
     onTabSelected: (TabItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val haptic = LocalHapticFeedback.current
 
     val pillHeight = 68.dp

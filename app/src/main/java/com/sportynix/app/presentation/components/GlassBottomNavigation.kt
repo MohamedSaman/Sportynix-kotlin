@@ -69,7 +69,7 @@ fun GlassBottomNavigation(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val bg = if (isDark) GlassSurfaceDark else GlassSurfaceLight
     val borderCol = if (isDark) GlassBorderDark else GlassBorderLight
 

@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -60,7 +61,7 @@ import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 data class PopularSportItem(
     val id: String,
     val name: String,
-    val emoji: String
+    val icon: ImageVector
 )
 
 @Composable
@@ -78,7 +79,7 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val context = LocalContext.current
     val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -107,12 +108,12 @@ fun SearchScreen(
 
     val popularSports = remember {
         listOf(
-            PopularSportItem("football", "Football", "⚽"),
-            PopularSportItem("basketball", "Basketball", "🏀"),
-            PopularSportItem("cricket", "Cricket", "🏏"),
-            PopularSportItem("badminton", "Badminton", "🏸"),
-            PopularSportItem("tennis", "Tennis", "🎾"),
-            PopularSportItem("swimming", "Swimming", "🏊")
+            PopularSportItem("football", "Football", Icons.Default.SportsSoccer),
+            PopularSportItem("basketball", "Basketball", Icons.Default.SportsBasketball),
+            PopularSportItem("cricket", "Cricket", Icons.Default.SportsCricket),
+            PopularSportItem("badminton", "Badminton", Icons.Default.SportsTennis),
+            PopularSportItem("tennis", "Tennis", Icons.Default.SportsTennis),
+            PopularSportItem("swimming", "Swimming", Icons.Default.Pool)
         )
     }
 
@@ -380,7 +381,12 @@ fun SearchScreen(
                                                             .background(primaryGreen.copy(alpha = 0.15f)),
                                                         contentAlignment = Alignment.Center
                                                     ) {
-                                                        Text(text = sport.emoji, fontSize = 20.sp)
+                                                        Icon(
+                                                            imageVector = sport.icon,
+                                                            contentDescription = null,
+                                                            tint = primaryGreen,
+                                                            modifier = Modifier.size(23.dp)
+                                                        )
                                                     }
                                                     Spacer(modifier = Modifier.height(6.dp))
                                                     Text(
@@ -409,8 +415,10 @@ fun SearchScreen(
                                     .padding(bottom = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = Color(0xFFFF8A34), modifier = Modifier.size(21.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "🔥 Popular Venues",
+                                    text = "Popular Venues",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -729,7 +737,7 @@ fun SearchScreen(
                                                     .background(primaryGreen.copy(alpha = 0.2f)),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text("⚽", fontSize = 24.sp)
+                                                Icon(Icons.Default.Groups, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(27.dp))
                                             }
 
                                             Spacer(modifier = Modifier.width(12.dp))

@@ -10,6 +10,7 @@ import com.sportynix.app.data.remote.dto.ResendOtpRequestDto
 import com.sportynix.app.data.remote.dto.ResetPasswordRequestDto
 import com.sportynix.app.data.remote.dto.SignUpRequestDto
 import com.sportynix.app.data.remote.dto.VerifyOtpRequestDto
+import com.sportynix.app.data.remote.dto.VerifyPasswordResetOtpRequestDto
 import com.sportynix.app.domain.model.User
 import com.sportynix.app.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.Flow
@@ -147,6 +148,16 @@ class AuthRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             ApiResult.Error(message = e.localizedMessage ?: "Network error")
+        }
+    }
+
+    override suspend fun verifyPasswordResetOtp(email: String, otpCode: String): ApiResult<Unit> {
+        return try {
+            val response = apiService.verifyPasswordResetOtp(VerifyPasswordResetOtpRequestDto(email, otpCode))
+            if (response.isSuccessful) ApiResult.Success(Unit)
+            else ApiResult.ServerError(response.code(), response.message().ifBlank { "Invalid or expired verification code" })
+        } catch (e: Exception) {
+            ApiResult.Error(message = e.localizedMessage ?: "Network error verifying code")
         }
     }
 

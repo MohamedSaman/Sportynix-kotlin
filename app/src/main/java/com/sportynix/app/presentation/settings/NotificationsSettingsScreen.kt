@@ -34,7 +34,7 @@ import com.sportynix.app.presentation.theme.*
 fun NotificationsSettingsScreen(
     onNavigateBack: () -> Unit = {}
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val backgroundColor = if (isDark) DarkBackground else LightBackground
     val cardColor = if (isDark) DarkSurface else LightSurface
     val borderColor = if (isDark) DarkSurfaceVariant else LightSurfaceVariant

@@ -8,15 +8,22 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = SportynixGreenPrimary,
+    primary = SportynixGreenDarkTheme,
     onPrimary = LightSurface,
     primaryContainer = SportynixGreenDark,
     secondary = AccentGold,
@@ -29,7 +36,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = SportynixGreenPrimary,
+    primary = SportynixGreenLightTheme,
     onPrimary = LightSurface,
     primaryContainer = SportynixGreenLight,
     secondary = AccentGold,
@@ -39,6 +46,24 @@ private val LightColorScheme = lightColorScheme(
     onBackground = TextPrimaryLight,
     onSurface = TextPrimaryLight,
     error = StatusError
+)
+
+private val SportynixTypography = Typography(
+    headlineLarge = TextStyle(fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, lineHeight = 36.sp),
+    headlineMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 30.sp),
+    titleLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 26.sp),
+    titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp),
+    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
+    labelLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 20.sp)
+)
+
+private val SportynixShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(32.dp)
 )
 
 @Composable
@@ -72,6 +97,8 @@ fun SportynixTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = SportynixTypography,
+        shapes = SportynixShapes,
         content = content
     )
 }

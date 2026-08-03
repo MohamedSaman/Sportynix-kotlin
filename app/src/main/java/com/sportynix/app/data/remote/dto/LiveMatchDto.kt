@@ -3,7 +3,7 @@ package com.sportynix.app.data.remote.dto
 import com.google.gson.annotations.SerializedName
 
 data class LiveMatchTeamDto(
-    @SerializedName("id") val id: Int?,
+    @SerializedName("id") val id: String?,
     @SerializedName("name") val name: String?,
     @SerializedName("short_name") val shortName: String?,
     @SerializedName("logo") val logo: String?,
@@ -18,8 +18,8 @@ data class LiveMatchWinnerDto(
 )
 
 data class LiveMatchDto(
-    @SerializedName(value = "match_id", alternate = ["id"]) val matchId: Int,
-    @SerializedName("league_id") val leagueId: Int?,
+    @SerializedName(value = "match_id", alternate = ["id"]) val matchId: String,
+    @SerializedName("league_id") val leagueId: String?,
     @SerializedName("league_name") val leagueName: String?,
     @SerializedName("competition_type") val competitionType: String?,
     @SerializedName("source_label") val sourceLabel: String?,
@@ -28,7 +28,7 @@ data class LiveMatchDto(
     @SerializedName("sport_type") val sportType: String?,
     @SerializedName("team1") val team1: LiveMatchTeamDto?,
     @SerializedName("team2") val team2: LiveMatchTeamDto?,
-    @SerializedName("batting_team_id") val battingTeamId: Int?,
+    @SerializedName("batting_team_id") val battingTeamId: String?,
     @SerializedName("current_innings") val currentInnings: Int?,
     @SerializedName("display_message") val displayMessage: String?,
     @SerializedName("chase_status") val chaseStatus: String?,
