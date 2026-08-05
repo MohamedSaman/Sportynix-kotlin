@@ -81,7 +81,7 @@ fun SearchScreen(
     val state = viewModel.state
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val context = LocalContext.current
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
 

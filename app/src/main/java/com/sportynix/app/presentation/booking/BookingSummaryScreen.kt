@@ -19,8 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -38,12 +41,12 @@ fun BookingSummaryScreen(
 ) {
     val state = viewModel.state
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
     val cardBg = if (isDark) Color(0xFF1E262C) else Color.White
     val borderClr = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val bgClr = if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC)
 
     LaunchedEffect(payload) {
         viewModel.initSummary(payload)
@@ -54,6 +57,13 @@ fun BookingSummaryScreen(
     val advanceAmount = quote?.advanceAmount ?: "%.2f".format(payload.totalPrice * 0.5)
     val gatewayAmount = quote?.gatewayAmount ?: if (state.selectedPaymentOption == "advance") advanceAmount else bookingTotal
     val remainingBalance = quote?.remainingBalance ?: "0.00"
+    val paymentRequired = quote?.paymentRequired ?: true
+    val allowedPaymentOptions = quote?.allowedPaymentOptions.orEmpty()
+    val paymentMode = quote?.paymentMode.orEmpty().lowercase()
+    val canPayAdvance = allowedPaymentOptions.isEmpty() && paymentMode != "full_only" ||
+        allowedPaymentOptions.any { it.equals("advance", ignoreCase = true) }
+    val canPayFull = allowedPaymentOptions.isEmpty() && paymentMode != "advance_only" ||
+        allowedPaymentOptions.any { it.equals("full", ignoreCase = true) }
 
     Scaffold(
         topBar = {
@@ -106,7 +116,15 @@ fun BookingSummaryScreen(
                     if (state.isSubmittingBooking) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Confirm & Pay LKR $gatewayAmount", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            when {
+                                !paymentRequired -> "Confirm Booking"
+                                state.selectedPaymentOption == "full" -> "Pay Full Amount"
+                                else -> "Pay Advance"
+                            }, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White
+                        )
                     }
                 }
             }
@@ -120,167 +138,137 @@ fun BookingSummaryScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header Card
+            // Premium sport hero
             item {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(cardBg)
-                        .border(1.dp, borderClr, RoundedCornerShape(16.dp))
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .height(140.dp)
+                        .border(1.dp, borderClr, RoundedCornerShape(24.dp)),
+                    contentAlignment = Alignment.BottomStart
                 ) {
-                    AsyncImage(
-                        model = payload.sportImageURL,
-                        contentDescription = null,
-                        modifier = Modifier.size(70.dp).clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(payload.sportName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(primaryGreen.copy(alpha = 0.12f))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text(payload.bookingType, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
-                            }
+                    if (payload.sportImageURL.isNotBlank()) {
+                        AsyncImage(
+                            model = payload.sportImageURL,
+                            contentDescription = payload.sportName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize().background(cardBg), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.SportsSoccer, null, tint = primaryGreen, modifier = Modifier.size(54.dp))
                         }
-
-                        Text(payload.venueName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
-                        Text(payload.bookingDate, fontSize = 12.sp, color = textSecondary)
                     }
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(74.dp)
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .72f))))
+                    )
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Sports, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Text(payload.sportName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+
+            item {
+                SummaryCard(cardBg, borderClr, primaryGreen, textPrimary, textSecondary, "Booking Details", Icons.Default.EventNote) {
+                    SummaryRow("Venue", payload.venueName, textPrimary, textSecondary)
+                    SummaryRow("Sport", payload.sportName, textPrimary, textSecondary)
+                    SummaryRow("Booking type", payload.bookingType, primaryGreen, textSecondary)
+                    if (payload.bookingType.equals("Normal", ignoreCase = true)) {
+                        SummaryRow("Date", formatBookingDate(payload.bookingDate), textPrimary, textSecondary)
+                    } else {
+                        SummaryRow("Selected days", payload.selectedDays.joinToString(", ") { it.take(3) }, textPrimary, textSecondary)
+                        SummaryRow("Duration", "1 Month", textPrimary, textSecondary)
+                    }
+                    SummaryRow("Booked by", state.userName, textPrimary, textSecondary)
+                    SummaryRow("Email", state.userEmail, textPrimary, textSecondary)
+                    SummaryRow("Contact no", state.userPhone, textPrimary, textSecondary)
+                    if (payload.venueAddress.isNotBlank()) SummaryRow("Location", payload.venueAddress, textPrimary, textSecondary)
                 }
             }
 
             // Selected Slots Section
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(cardBg)
-                        .border(1.dp, borderClr, RoundedCornerShape(16.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Selected Slots (${payload.slots.size})", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                SummaryCard(cardBg, borderClr, primaryGreen, textPrimary, textSecondary, "Selected Slots (${payload.slots.size})", Icons.Default.Schedule) {
                     payload.slots.forEach { slot ->
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(imageVector = Icons.Default.Schedule, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(16.dp))
-                                Text("${slot.startTime} - ${slot.endTime}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
-                            }
-                            Text("LKR ${"%.2f".format(slot.price)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
+                            Text("${slot.startTime} - ${slot.endTime}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                            Text("Rs. ${formatBookingMoney(slot.price)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
                         }
+                    }
+                    HorizontalDivider(color = borderClr)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Total", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        Text("Rs. ${formatBookingMoney(bookingTotal.toDoubleOrNull() ?: payload.totalPrice)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
                     }
                 }
             }
 
             // Payment Option Selector (Advance vs. Full)
-            item {
+            if (paymentRequired) item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Select Payment Option", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Text("Payment Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Text("Choose how much to pay now", fontSize = 13.sp, color = textSecondary)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
+                        if (canPayAdvance) Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(if (state.selectedPaymentOption == "advance") primaryGreen.copy(alpha = 0.12f) else cardBg)
                                 .border(if (state.selectedPaymentOption == "advance") 1.5.dp else 1.dp, if (state.selectedPaymentOption == "advance") primaryGreen else borderClr, RoundedCornerShape(14.dp))
                                 .clickable { viewModel.setPaymentOption("advance") }
-                                .padding(12.dp),
+                                .padding(vertical = 14.dp, horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            RadioButton(
-                                selected = state.selectedPaymentOption == "advance",
-                                onClick = { viewModel.setPaymentOption("advance") },
-                                colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
-                            )
-                            Column {
-                                Text("Pay Advance Only", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                                Text("LKR $advanceAmount", fontSize = 12.sp, color = primaryGreen)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Pay Advance", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (state.selectedPaymentOption == "advance") Color.White else textPrimary)
+                                Text("LKR $advanceAmount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (state.selectedPaymentOption == "advance") Color.White else primaryGreen)
                             }
                         }
 
-                        Row(
+                        if (canPayFull) Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(if (state.selectedPaymentOption == "full") primaryGreen.copy(alpha = 0.12f) else cardBg)
                                 .border(if (state.selectedPaymentOption == "full") 1.5.dp else 1.dp, if (state.selectedPaymentOption == "full") primaryGreen else borderClr, RoundedCornerShape(14.dp))
                                 .clickable { viewModel.setPaymentOption("full") }
-                                .padding(12.dp),
+                                .padding(vertical = 14.dp, horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            RadioButton(
-                                selected = state.selectedPaymentOption == "full",
-                                onClick = { viewModel.setPaymentOption("full") },
-                                colors = RadioButtonDefaults.colors(selectedColor = primaryGreen)
-                            )
-                            Column {
-                                Text("Pay Full Amount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                                Text("LKR $bookingTotal", fontSize = 12.sp, color = primaryGreen)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Pay Full", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (state.selectedPaymentOption == "full") Color.White else textPrimary)
+                                Text("LKR $bookingTotal", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (state.selectedPaymentOption == "full") Color.White else primaryGreen)
                             }
                         }
+                    }
+                    SummaryCard(cardBg, borderClr, primaryGreen, textPrimary, textSecondary, "Payment Breakdown", Icons.Default.CreditCard) {
+                        SummaryRow("Booking total", "LKR $bookingTotal", textPrimary, textSecondary)
+                        SummaryRow("Payable now", "LKR $gatewayAmount", primaryGreen, textSecondary)
+                        if (remainingBalance != "0.00") SummaryRow("Remaining balance", "LKR $remainingBalance", Color(0xFFF59E0B), textSecondary)
                     }
                 }
             }
 
-            // Payment Breakdown Card
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(cardBg)
-                        .border(1.dp, borderClr, RoundedCornerShape(16.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("Payment Summary", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Subtotal", fontSize = 14.sp, color = textSecondary)
-                        Text("LKR $bookingTotal", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
-                    }
-
-                    if (quote?.discountAmount != null && quote.discountAmount != "0.00") {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Discount", fontSize = 14.sp, color = textSecondary)
-                            Text("-LKR ${quote.discountAmount}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
-                        }
-                    }
-
-                    HorizontalDivider(color = borderClr)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total Booking Amount", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                        Text("LKR $bookingTotal", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Payable Now", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
-                        Text("LKR $gatewayAmount", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
-                    }
-
-                    if (remainingBalance != "0.00") {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Remaining Balance (Pay at venue)", fontSize = 13.sp, color = textSecondary)
-                            Text("LKR $remainingBalance", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
-                        }
-                    }
+                SummaryCard(cardBg, borderClr, primaryGreen, textPrimary, textSecondary, "Terms & Conditions", Icons.Default.Info) {
+                    Text("• Refund eligibility follows the cancellation deadline.", fontSize = 13.sp, color = textSecondary)
+                    Text("• Online payments are confirmed through the secure gateway.", fontSize = 13.sp, color = textSecondary)
+                    Text("• Arrive 15 minutes before your slot.", fontSize = 13.sp, color = textSecondary)
+                    Text("• Venue rules must be followed.", fontSize = 13.sp, color = textSecondary)
                 }
             }
 
@@ -316,4 +304,44 @@ fun BookingSummaryScreen(
             }
         }
     }
+
+    state.errorMessage?.let { message ->
+        AlertDialog(onDismissRequest = viewModel::clearErrorMessage,
+            title = { Text("Booking payment") }, text = { Text(message) },
+            confirmButton = { TextButton(onClick = viewModel::clearErrorMessage) { Text("OK") } })
+    }
 }
+
+@Composable
+private fun SummaryCard(
+    background: Color, border: Color, accent: Color, textPrimary: Color, textSecondary: Color,
+    title: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(background)
+        .border(1.dp, border, RoundedCornerShape(20.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = accent, modifier = Modifier.size(19.dp))
+            }
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+        }
+        content()
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, value: String, valueColor: Color, labelColor: Color) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Text(label, modifier = Modifier.width(112.dp), fontSize = 14.sp, color = labelColor)
+        Text(value, modifier = Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = valueColor,
+            textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+private fun formatBookingMoney(value: Double): String = String.format(java.util.Locale.US, "%.2f", value)
+private fun formatBookingDate(value: String): String = runCatching {
+    java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US).format(
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(value)!!
+    )
+}.getOrDefault(value)

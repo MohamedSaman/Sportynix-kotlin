@@ -399,7 +399,7 @@ class BookingRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 ApiResult.Success(Unit)
             } else {
-                ApiResult.ServerError(response.code(), "Failed to cancel booking")
+                ApiResult.ServerError(response.code(), response.errorBody()?.string() ?: "Failed to cancel booking")
             }
         } catch (e: Exception) {
             ApiResult.Error(message = e.localizedMessage ?: "Error cancelling booking")
@@ -412,7 +412,7 @@ class BookingRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 ApiResult.Success(Unit)
             } else {
-                ApiResult.ServerError(response.code(), "Failed to cancel booking series")
+                ApiResult.ServerError(response.code(), response.errorBody()?.string() ?: "Failed to cancel booking series")
             }
         } catch (e: Exception) {
             ApiResult.Error(message = e.localizedMessage ?: "Error cancelling booking series")
@@ -425,7 +425,7 @@ class BookingRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 ApiResult.Success(Unit)
             } else {
-                ApiResult.ServerError(response.code(), "Failed to assign team")
+                ApiResult.ServerError(response.code(), response.errorBody()?.string() ?: "Failed to assign team")
             }
         } catch (e: Exception) {
             ApiResult.Error(message = e.localizedMessage ?: "Error assigning team")
@@ -438,7 +438,7 @@ class BookingRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 ApiResult.Success(Unit)
             } else {
-                ApiResult.ServerError(response.code(), "Failed to remove team")
+                ApiResult.ServerError(response.code(), response.errorBody()?.string() ?: "Failed to remove team")
             }
         } catch (e: Exception) {
             ApiResult.Error(message = e.localizedMessage ?: "Error removing team")

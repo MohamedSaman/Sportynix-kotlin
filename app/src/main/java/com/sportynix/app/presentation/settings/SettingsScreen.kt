@@ -124,7 +124,7 @@ fun SettingsScreen(
     val borderColor = if (isDark) DarkSurfaceVariant else LightSurfaceVariant
     val textPrimary = if (isDark) TextPrimaryDark else TextPrimaryLight
     val textSecondary = if (isDark) TextSecondaryDark else TextSecondaryLight
-    val accentGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val accentGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
 
     var showChangeEmail by remember { mutableStateOf(false) }
     var showChangePassword by remember { mutableStateOf(false) }

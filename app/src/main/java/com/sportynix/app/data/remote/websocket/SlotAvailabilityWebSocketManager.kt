@@ -12,6 +12,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.*
 import timber.log.Timber
@@ -40,6 +42,10 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
     private var isConnected = false
     private var currentSportId: Int? = null
     private var currentToken: String? = null
+    private var currentBaseUrl: String? = null
+    private var isConnecting = false
+    private var intentionalDisconnect = false
+    private var reconnectJob: Job? = null
     private var pendingRequests = mutableListOf<String>()
 
     private val _connectedFlow = MutableSharedFlow<Unit>(replay = 1)
@@ -55,7 +61,7 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
     val errorFlow: SharedFlow<String> = _errorFlow.asSharedFlow()
 
     fun connect(sportId: Int, token: String, baseUrl: String) {
-        if (currentSportId == sportId && isConnected) return
+        if (currentSportId == sportId && (isConnected || isConnecting)) return
 
         if (currentSportId != sportId) {
             disconnect()
@@ -63,6 +69,9 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
 
         currentSportId = sportId
         currentToken = token
+        currentBaseUrl = baseUrl
+        intentionalDisconnect = false
+        isConnecting = true
 
         val wsScheme = if (baseUrl.startsWith("https://")) "wss://" else "ws://"
         val hostPath = baseUrl.removePrefix("https://").removePrefix("http://")
@@ -83,11 +92,15 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
     }
 
     fun disconnect() {
+        intentionalDisconnect = true
+        reconnectJob?.cancel()
         webSocket?.close(1000, "Screen destroyed")
         webSocket = null
         isConnected = false
+        isConnecting = false
         currentSportId = null
         currentToken = null
+        currentBaseUrl = null
         pendingRequests.clear()
     }
 
@@ -115,7 +128,7 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
             webSocket?.send(jsonStr)
         } else {
             synchronized(pendingRequests) {
-                pendingRequests.add(jsonStr)
+                if (!pendingRequests.contains(jsonStr)) pendingRequests.add(jsonStr)
             }
         }
     }
@@ -134,6 +147,7 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
         return object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 isConnected = true
+                isConnecting = false
                 Timber.d("[SlotWS] Connection opened")
                 scope.launch {
                     _connectedFlow.emit(Unit)
@@ -147,15 +161,32 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
+                isConnecting = false
                 Timber.e(t, "[SlotWS] Connection failure")
                 scope.launch {
                     _errorFlow.emit(t.localizedMessage ?: "WebSocket connection failed")
                 }
+                scheduleReconnect()
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 isConnected = false
+                isConnecting = false
                 Timber.d("[SlotWS] Connection closed: $reason")
+                scheduleReconnect()
+            }
+        }
+    }
+
+    private fun scheduleReconnect() {
+        if (intentionalDisconnect || reconnectJob?.isActive == true) return
+        val sportId = currentSportId ?: return
+        val token = currentToken ?: return
+        val baseUrl = currentBaseUrl ?: return
+        reconnectJob = scope.launch {
+            delay(2_000)
+            if (!intentionalDisconnect && !isConnected && !isConnecting) {
+                connect(sportId, token, baseUrl)
             }
         }
     }
@@ -252,10 +283,23 @@ class SlotAvailabilityWebSocketManager @Inject constructor(
     }
 
     private fun normalizeSlotData(slot: SlotData): SlotData {
-        val rawStart = slot.rawStart ?: slot.startTime?.take(5)
-        val rawEndCandidate = slot.rawEnd ?: slot.endTime?.take(5)
-        val rawEnd = rawEndCandidate?.replace("24:00", "00:00")
-        val keyCandidate = slot.slotKey ?: if (rawStart != null && rawEnd != null) "$rawStart-$rawEnd" else null
+        fun apiTime(value: String?): String? {
+            val input = value?.trim()?.replace("24:00", "00:00") ?: return null
+            listOf("H:mm", "HH:mm", "H:mm:ss", "HH:mm:ss", "h:mm a", "hh:mm a").forEach { pattern ->
+                runCatching {
+                    val parsed = java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply { isLenient = false }.parse(input)
+                    if (parsed != null) return java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(parsed)
+                }
+            }
+            return null
+        }
+        // Keep raw_start/raw_end unchanged; they are sent back to the live
+        // API and may include seconds. Convert only for the canonical key.
+        val rawStart = slot.rawStart?.trim()?.replace("24:00", "00:00") ?: apiTime(slot.startTime)
+        val rawEnd = slot.rawEnd?.trim()?.replace("24:00", "00:00") ?: apiTime(slot.endTime)
+        val keyCandidate = if (rawStart != null && rawEnd != null) {
+            "${apiTime(rawStart) ?: rawStart}-${apiTime(rawEnd) ?: rawEnd}"
+        } else slot.slotKey
         val normalizedKey = keyCandidate?.replace("-24:00", "-00:00")
 
         return slot.copy(

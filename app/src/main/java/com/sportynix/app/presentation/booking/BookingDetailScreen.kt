@@ -44,12 +44,20 @@ fun BookingDetailScreen(
     val state = viewModel.uiState
     val context = LocalContext.current
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
     val cardBg = if (isDark) Color(0xFF1E262C) else Color.White
     val borderClr = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val bgClr = if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC)
+
+    fun statusColor(status: String): Color = when (status.lowercase()) {
+        "completed" -> Color(0xFF22C55E)
+        "cancelled", "canceled" -> Color(0xFFEF4444)
+        "no-show", "noshow" -> Color(0xFFF59E0B)
+        "ongoing", "playing" -> Color(0xFFF59E0B)
+        else -> primaryGreen
+    }
 
     LaunchedEffect(initialBooking, bookingId) {
         viewModel.initBooking(initialBooking, bookingId)
@@ -114,7 +122,7 @@ fun BookingDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (b.qrCode) {
+                        if (b.qrCode && b.status.lowercase() !in setOf("cancelled", "canceled", "no-show", "noshow")) {
                             OutlinedButton(
                                 onClick = { viewModel.openQRModal() },
                                 modifier = Modifier.weight(1f).height(48.dp),
@@ -126,15 +134,17 @@ fun BookingDetailScreen(
                             }
                         }
 
-                        Button(
-                            onClick = {
-                                onNavigateToCancel(b, if (b.isPermanent) "series" else "single")
-                            },
-                            modifier = Modifier.weight(1f).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                        ) {
-                            Text(if (b.isPermanent) "Cancel Series" else "Cancel Booking", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        if (b.canCancel && b.status.lowercase() in setOf("upcoming", "confirmed", "pending", "ongoing", "playing")) {
+                            Button(
+                                onClick = { onNavigateToCancel(b, if (b.isPermanent) "series" else "single") },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                            ) {
+                                Icon(Icons.Default.Cancel, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(if (b.isPermanent) "Cancel Series" else "Cancel Booking", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
                     }
                 }
@@ -192,12 +202,48 @@ fun BookingDetailScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(CircleShape)
-                                        .background(primaryGreen)
+                                    .background(statusColor(booking.status))
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(booking.status.replaceFirstChar { it.uppercase() }, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Actions — mirrors the Swift detail view and keeps every action live.
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .background(cardBg).border(1.dp, borderClr, RoundedCornerShape(16.dp)).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Actions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        if (booking.status.lowercase() in setOf("upcoming", "confirmed", "pending", "ongoing", "playing") && booking.qrCode) {
+                            OutlinedButton(
+                                onClick = { viewModel.openQRModal() },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.QrCode, null, tint = Color(0xFF3B82F6))
+                                Spacer(Modifier.width(10.dp))
+                                Text("View QR Code", color = Color(0xFF3B82F6), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, "Sportynix booking at ${booking.complexName} on ${booking.playDateStart} at ${booking.timeSlot}. Reference #${booking.bookingId}")
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Booking"))
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Share, null, tint = Color(0xFF3B82F6))
+                            Spacer(Modifier.width(10.dp))
+                            Text("Share Booking", color = Color(0xFF3B82F6), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -244,6 +290,20 @@ fun BookingDetailScreen(
                             Text("Reference #", fontSize = 14.sp, color = textSecondary)
                             Text("#${booking.bookingId}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textSecondary)
                         }
+                    }
+                }
+
+                // Swift-style booking details and team information.
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .background(cardBg).border(1.dp, borderClr, RoundedCornerShape(16.dp)).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Booking Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        DetailLine("Booked by", "Account holder", textPrimary, textSecondary)
+                        DetailLine("Team", if (booking.teamId != null) booking.teamName else "No team assigned", textPrimary, textSecondary)
+                        if (booking.teamId != null) DetailLine("Members", "${booking.memberCount} members", textPrimary, textSecondary)
                     }
                 }
 
@@ -330,40 +390,114 @@ fun BookingDetailScreen(
                                 }
                             }
 
-                            val visibleSlots = if (state.showAllPermanentSlots) state.permanentSlots else state.permanentSlots.take(3)
+                            val filteredSlots = state.permanentSlots.filter { slot ->
+                                state.activePermanentTab == "All" || slot.status.equals(state.activePermanentTab, ignoreCase = true) ||
+                                    (state.activePermanentTab == "No-Show" && slot.status.equals("no_show", ignoreCase = true))
+                            }
+                            val visibleSlots = if (state.showAllPermanentSlots) filteredSlots else filteredSlots.take(3)
                             visibleSlots.forEach { slot ->
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(if (isDark) Color.White.copy(alpha = 0.05f) else Color(0xFFF1F5F9))
                                         .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Column {
-                                        Text(slot.playDateStart, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                                        Text(slot.timeSlot, fontSize = 12.sp, color = textSecondary)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Column {
+                                            Text(slot.playDateStart, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                                            Text(slot.timeSlot, fontSize = 12.sp, color = textSecondary)
+                                        }
+                                        Text(slot.status, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = statusColor(slot.status))
                                     }
-                                    Text(slot.status, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(
+                                            onClick = { viewModel.openQRModal(slot.bookingId) },
+                                            modifier = Modifier.weight(1f).height(38.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.QrCode, null, modifier = Modifier.size(15.dp), tint = Color(0xFF3B82F6))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("View QR", fontSize = 11.sp, color = Color(0xFF3B82F6))
+                                        }
+                                        if (slot.status.lowercase() in setOf("upcoming", "confirmed", "pending")) {
+                                            OutlinedButton(
+                                                onClick = { onNavigateToCancel(slot, "single") },
+                                                modifier = Modifier.weight(1f).height(38.dp),
+                                                contentPadding = PaddingValues(horizontal = 8.dp),
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                                            ) {
+                                                Icon(Icons.Default.Cancel, null, modifier = Modifier.size(15.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("Cancel Slot", fontSize = 11.sp)
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
-                            if (state.permanentSlots.size > 3) {
+                            if (filteredSlots.size > 3) {
                                 TextButton(
                                     onClick = { viewModel.setShowAllPermanentSlots(!state.showAllPermanentSlots) },
                                     modifier = Modifier.align(Alignment.CenterHorizontally)
                                 ) {
-                                    Text(if (state.showAllPermanentSlots) "Show Less" else "Show All ${state.permanentSlots.size} Slots", color = primaryGreen, fontWeight = FontWeight.Bold)
+                                    Text(if (state.showAllPermanentSlots) "Show Less" else "Show All ${filteredSlots.size} Slots", color = primaryGreen, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
                 }
 
-                item {
-                    Spacer(modifier = Modifier.height(40.dp))
+                if (!booking.isPermanent) {
+                    item {
+                        DetailCard(title = "Schedule", cardBg = cardBg, borderClr = borderClr, textPrimary = textPrimary) {
+                            DetailLine("Play date", booking.playDateStart, textPrimary, textSecondary)
+                            DetailLine("Time", booking.timeSlot, primaryGreen, textSecondary)
+                            DetailLine("Duration", booking.duration, textPrimary, textSecondary)
+                        }
+                    }
                 }
+
+                item {
+                    DetailCard(title = "Location", cardBg = cardBg, borderClr = borderClr, textPrimary = textPrimary) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                .background(if (isDark) Color.White.copy(alpha = .05f) else Color(0xFFF1F5F9))
+                                .clickable {
+                                    val uri = android.net.Uri.parse("geo:0,0?q=${android.net.Uri.encode(booking.location)}")
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                }.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Default.LocationOn, null, tint = Color(0xFF3B82F6))
+                            Text(booking.location.ifBlank { "Location unavailable" }, modifier = Modifier.weight(1f), color = textPrimary, fontSize = 14.sp)
+                            Icon(Icons.Default.ChevronRight, null, tint = textSecondary)
+                        }
+                    }
+                }
+
+                item {
+                    DetailCard(title = "Payment Summary", cardBg = cardBg, borderClr = borderClr, textPrimary = textPrimary) {
+                        DetailLine("Total amount", booking.price, textPrimary, textSecondary)
+                        DetailLine("Payment status", booking.status.replaceFirstChar { it.uppercase() }, statusColor(booking.status), textSecondary)
+                    }
+                }
+
+                item {
+                    DetailCard(title = "Booking Information", cardBg = cardBg, borderClr = borderClr, textPrimary = textPrimary) {
+                        DetailLine("Booking ID", "#${booking.bookingId}", textPrimary, textSecondary)
+                        HorizontalDivider(color = borderClr)
+                        DetailLine("Booked date", booking.bookedDate.ifBlank { "N/A" }, textPrimary, textSecondary)
+                        DetailLine("Created", booking.createdAt ?: "N/A", textPrimary, textSecondary)
+                        DetailLine("Status", booking.status.replaceFirstChar { it.uppercase() }, statusColor(booking.status), textSecondary)
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(40.dp)) }
             }
         }
 
@@ -430,5 +564,35 @@ fun BookingDetailScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetailLine(label: String, value: String, valueColor: Color, labelColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(label, modifier = Modifier.width(100.dp), fontSize = 14.sp, color = labelColor)
+        Text(value, modifier = Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = valueColor)
+    }
+}
+
+@Composable
+private fun DetailCard(
+    title: String,
+    cardBg: Color,
+    borderClr: Color,
+    textPrimary: Color,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .background(cardBg).border(1.dp, borderClr, RoundedCornerShape(16.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+        content()
     }
 }

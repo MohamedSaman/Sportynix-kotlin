@@ -309,6 +309,7 @@ fun NavGraph(
                 complexReviews = 10,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSummary = { payload ->
+                    com.sportynix.app.presentation.booking.BookingFlowState.payload = payload
                     val slotKeys = payload.slots.joinToString(",") { "${it.startTime}-${it.endTime}" }
                     val daysStr = payload.selectedDays.joinToString(",")
                     navController.navigate(Screen.BookingSummary.createRoute(payload.venueId.toString(), payload.sportId.toString(), payload.bookingDate, slotKeys, payload.bookingType, daysStr))
@@ -348,27 +349,28 @@ fun NavGraph(
                 } else null
             }
 
-            val payload = com.sportynix.app.data.remote.dto.BookingPayload(
-                sportId = sportId.toIntOrNull() ?: 1,
-                sportName = "Sport",
-                sportPrice = "500.00",
-                sportImageURL = "",
-                venueId = venueId.toIntOrNull() ?: 1,
-                venueName = "Sportynix Venue",
-                venueAddress = "Location",
-                bookingType = bookingType,
-                bookingDate = date,
-                selectedDays = selectedDays,
-                slots = slotsList,
-                totalPrice = slotsList.sumOf { it.price }
-            )
+            val payload = com.sportynix.app.presentation.booking.BookingFlowState.payload
+                ?: return@composable
 
             com.sportynix.app.presentation.booking.BookingSummaryScreen(
                 payload = payload,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToCheckout = { checkoutResp ->
-                    val orderId = checkoutResp.payment?.orderId ?: "ORD123"
-                    val amount = checkoutResp.payment?.amount ?: 500.0
+                    com.sportynix.app.presentation.booking.BookingFlowState.checkout = checkoutResp
+                    val orderId = checkoutResp.payment?.orderId
+                    // No-payment sports return confirmed bookings directly;
+                    // do not strand the user on Summary when no order exists.
+                    if (orderId.isNullOrBlank()) {
+                        val confirmed = checkoutResp.bookings.orEmpty()
+                        if (confirmed.isNotEmpty()) {
+                            com.sportynix.app.presentation.booking.BookingFlowState.confirmedBookings = confirmed
+                            navController.navigate(Screen.BookingConfirmation.route) {
+                                popUpTo(Screen.Booking.route) { inclusive = true }
+                            }
+                        }
+                        return@BookingSummaryScreen
+                    }
+                    val amount = checkoutResp.payment?.amount ?: 0.0
                     val url = checkoutResp.checkout?.url ?: ""
                     navController.navigate(Screen.BookingAdvancePaymentPreview.createRoute(orderId, amount, url))
                 }
@@ -387,15 +389,18 @@ fun NavGraph(
             val amount = backStackEntry.arguments?.getFloat("amount")?.toDouble() ?: 0.0
             val checkoutUrl = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("checkoutUrl") ?: "", "UTF-8")
 
+            val savedCheckout = com.sportynix.app.presentation.booking.BookingFlowState.checkout
             com.sportynix.app.presentation.booking.BookingAdvancePaymentPreviewScreen(
-                checkoutResponse = com.sportynix.app.data.remote.dto.PaymentCheckoutResponseDto(
+                checkoutResponse = savedCheckout ?: com.sportynix.app.data.remote.dto.PaymentCheckoutResponseDto(
                     checkout = com.sportynix.app.data.remote.dto.PaymentCheckoutUrlDto(url = checkoutUrl),
                     payment = com.sportynix.app.data.remote.dto.PaymentOrderInfoDto(orderId = orderId, amount = amount, purpose = "advance"),
-                    bookings = emptyList(),
-                    reservationExpiresAt = null
-                ),
+                    bookings = null,
+                    reservationExpiresAt = null),
+                bookingType = com.sportynix.app.presentation.booking.BookingFlowState.bookingType,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToConfirmation = { confirmedBookings, type ->
+                    com.sportynix.app.presentation.booking.BookingFlowState.confirmedBookings = confirmedBookings
+                    com.sportynix.app.presentation.booking.BookingFlowState.bookingType = type
                     navController.navigate(Screen.BookingConfirmation.route) {
                         popUpTo(Screen.Booking.route) { inclusive = true }
                     }
@@ -405,9 +410,10 @@ fun NavGraph(
 
         composable(Screen.BookingConfirmation.route) {
             com.sportynix.app.presentation.booking.BookingConfirmationScreen(
-                bookings = emptyList(),
-                bookingType = "Normal",
+                bookings = com.sportynix.app.presentation.booking.BookingFlowState.confirmedBookings,
+                bookingType = com.sportynix.app.presentation.booking.BookingFlowState.bookingType,
                 onNavigateToHome = {
+                    com.sportynix.app.presentation.booking.BookingFlowState.clear()
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
@@ -451,7 +457,8 @@ fun NavGraph(
                 },
                 onNavigateToCancel = { booking ->
                     navController.navigate(Screen.BookingCancellationReview.createRoute(booking.bookingId.toString(), if (booking.isPermanent) "series" else "single"))
-                }
+                },
+                onNavigateToNewBooking = { navController.navigate(Screen.VenueList.route) }
             )
         }
 
@@ -569,6 +576,9 @@ fun NavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToVenueDetail = { venueId ->
                     navController.navigate(Screen.VenueDetail.createRoute(venueId))
+                },
+                onNavigateToSportDetail = { sportId, venueId ->
+                    navController.navigate(Screen.SportDetail.createRoute(sportId, venueId))
                 }
             )
         }

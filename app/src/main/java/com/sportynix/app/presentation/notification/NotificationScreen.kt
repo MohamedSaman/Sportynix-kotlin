@@ -47,7 +47,7 @@ fun NotificationScreen(
     var confirmClear by remember { mutableStateOf(false) }
     var announcement by remember { mutableStateOf<AnnouncementDetailPayload?>(null) }
     val dark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val bg = if (dark) Color(0xFF0A0B0E) else Color(0xFFF7F8FA)
+    val bg = if (dark) Color(0xFF070C16) else Color(0xFFF7F8FA)
 
     LaunchedEffect(viewModel) {
         viewModel.navigation.collect { destination ->

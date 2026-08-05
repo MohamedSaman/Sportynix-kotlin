@@ -96,7 +96,7 @@ fun HomeScreen(
         )
     }
 
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
 
     val filteredFeaturedVenues = remember(state.featuredVenues, state.selectedCategory) {
         if (state.selectedCategory == "Popular") {
@@ -1090,7 +1090,7 @@ private fun LiveMatchCardItem(
                         text = "League",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF22C55E)
+                        color = Color(0xFF00D982)
                     )
                 }
 
@@ -1234,7 +1234,7 @@ private fun LiveMatchCardItem(
                     text = footerText,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF22C55E),
+                    color = Color(0xFF00D982),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

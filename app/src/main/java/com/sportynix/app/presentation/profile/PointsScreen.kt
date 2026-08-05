@@ -179,7 +179,7 @@ fun PointsScreen(
     val borderColor = if (isDark) DarkSurfaceVariant else LightSurfaceVariant
     val textPrimary = if (isDark) TextPrimaryDark else TextPrimaryLight
     val textSecondary = if (isDark) TextSecondaryDark else TextSecondaryLight
-    val accentGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val accentGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
 
     val totalPoints = viewModel.totalPoints
     val rankInfo = remember(totalPoints) {

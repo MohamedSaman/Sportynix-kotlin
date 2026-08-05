@@ -176,7 +176,17 @@ class BookingDetailViewModel @Inject constructor(
                     sportId = b.sportId.toString(),
                     bookingType = if (b.isPermanent) "Permanent" else "Normal",
                     date = b.playDateStart,
-                    slots = listOf(QuoteSlotDto(startTime = "08:00", endTime = "09:00", duration = 60, price = 500.0)),
+                    slots = listOf(
+                        QuoteSlotDto(
+                            startTime = b.timeSlot.substringBefore("-").trim().ifBlank { "00:00" },
+                            endTime = b.timeSlot.substringAfter("-", "01:00").trim(),
+                            duration = b.duration.filter(Char::isDigit).toIntOrNull() ?: 60,
+                            price = b.totalPrice
+                        )
+                    ),
+                    userName = null,
+                    userEmail = null,
+                    userNumber = null,
                     paymentOption = "full"
                 )
                 val res = bookingApiService.createPaymentCheckout(req)
@@ -193,12 +203,13 @@ class BookingDetailViewModel @Inject constructor(
         }
     }
 
-    fun openQRModal() {
+    fun openQRModal(bookingId: Int? = null) {
         val b = uiState.booking ?: return
-        uiState = uiState.copy(showQRModal = true, qrCodeUrl = b.qrCodeURL)
-        if (b.qrCodeURL.isNullOrEmpty()) {
+        val requestedId = bookingId ?: b.bookingId
+        uiState = uiState.copy(showQRModal = true, qrCodeUrl = if (requestedId == b.bookingId) b.qrCodeURL else null)
+        if (uiState.qrCodeUrl.isNullOrEmpty()) {
             viewModelScope.launch {
-                when (val res = bookingRepository.fetchBookingQRCode(b.bookingId)) {
+                when (val res = bookingRepository.fetchBookingQRCode(requestedId)) {
                     is ApiResult.Success -> {
                         uiState = uiState.copy(qrCodeUrl = res.data)
                     }

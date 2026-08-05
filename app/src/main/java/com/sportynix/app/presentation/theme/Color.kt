@@ -4,20 +4,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // Core Brand Colors - Electric Sportynix Green
-val SportynixGreenPrimary = Color(0xFF10B981)
+val SportynixGreenPrimary = Color(0xFF00D982)
 val SportynixGreenLightTheme = Color(0xFF0D8A4F)
-val SportynixGreenDarkTheme = Color(0xFF16A34A)
-val SportynixGreenDark = Color(0xFF059669)
+val SportynixGreenDarkTheme = Color(0xFF00D982)
+val SportynixGreenDark = Color(0xFF00B86B)
 val SportynixGreenLight = Color(0xFF6EE7B7)
-val NeonGreen = Color(0xFF00E676)
-val NeonGreenGlow = Color(0x3300E676)
+val NeonGreen = Color(0xFF00D982)
+val NeonGreenGlow = Color(0x3300D982)
 
-// Dark Theme Slate Palette (Futuristic Dark)
-val DarkBackground = Color(0xFF0D110F)
-val DarkSurface = Color(0xFF171B19)
-val DarkSurfaceVariant = Color(0xFF202622)
-val GlassSurfaceDark = Color(0xD90D1322)
-val GlassCardDark = Color(0xA6162032)
+// Shared premium navy-black palette. Every dark screen uses this canvas.
+val DarkBackground = Color(0xFF070C16)
+val DarkSurface = Color(0xFF101A2B)
+val DarkSurfaceVariant = Color(0xFF1C2A40)
+val GlassSurfaceDark = Color(0xE60B1220)
+val GlassCardDark = Color(0xB31B2A40)
 val GlassBorderDark = Color(0x3D00E676)
 
 // Light Theme Slate Palette (Clean Glass Light)
@@ -42,7 +42,7 @@ val StatusWarning = Color(0xFFF59E0B)
 
 // Gradient Brushes for Glass UI
 val PrimaryNeonGradient = Brush.horizontalGradient(
-    colors = listOf(Color(0xFF10B981), Color(0xFF00E676))
+    colors = listOf(Color(0xFF00B86B), Color(0xFF00E58A))
 )
 
 val GlassHighlightGradientDark = Brush.verticalGradient(

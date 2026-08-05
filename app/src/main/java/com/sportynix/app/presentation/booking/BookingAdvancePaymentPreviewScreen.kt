@@ -2,12 +2,16 @@ package com.sportynix.app.presentation.booking
 
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -28,17 +33,19 @@ import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 @Composable
 fun BookingAdvancePaymentPreviewScreen(
     checkoutResponse: PaymentCheckoutResponseDto?,
+    bookingType: String = "Normal",
     onNavigateBack: () -> Unit,
     onNavigateToConfirmation: (List<ConfirmedBookingDto>, String) -> Unit,
     viewModel: BookingPaymentViewModel = hiltViewModel()
 ) {
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val bgClr = if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC)
 
     var isWebViewOpen by remember { mutableStateOf(false) }
+    var showExitPrompt by remember { mutableStateOf(false) }
 
     val checkoutUrl = remember(checkoutResponse) {
         val raw = checkoutResponse?.checkout?.url ?: ""
@@ -54,6 +61,16 @@ fun BookingAdvancePaymentPreviewScreen(
         checkoutResponse?.payment?.orderId ?: ""
     }
 
+    fun requestExit() {
+        if (viewModel.step == PaymentStep.SUCCESS || viewModel.step == PaymentStep.FAILED || viewModel.step == PaymentStep.EXPIRED) {
+            onNavigateBack()
+        } else {
+            showExitPrompt = true
+        }
+    }
+
+    BackHandler(enabled = !isWebViewOpen) { requestExit() }
+
     Scaffold(
         containerColor = bgClr
     ) { paddingValues ->
@@ -61,15 +78,28 @@ fun BookingAdvancePaymentPreviewScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(24.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = .08f)).clickable { requestExit() }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textSecondary, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (bookingType.equals("Permanent", true)) "Secure permanent payment" else "Secure advance payment",
+                            fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        Text("Sportynix card gateway", fontSize = 12.sp, color = textSecondary)
+                    }
+                }
+
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(primaryGreen.copy(alpha = 0.12f)),
+                        .size(104.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(primaryGreen),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -84,34 +114,46 @@ fun BookingAdvancePaymentPreviewScreen(
                             PaymentStep.FAILED, PaymentStep.EXPIRED -> Color.Red
                             else -> primaryGreen
                         },
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(44.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
-
                 Text(
                     text = when (viewModel.step) {
-                        PaymentStep.SUCCESS -> "Payment Confirmed!"
-                        PaymentStep.FAILED -> "Payment Failed"
-                        PaymentStep.VERIFYING -> "Verifying Payment"
-                        else -> "Secure Payment"
+                        PaymentStep.SUCCESS -> "Payment confirmed"
+                        PaymentStep.FAILED -> "Payment incomplete"
+                        PaymentStep.EXPIRED -> "Reservation expired"
+                        PaymentStep.VERIFYING -> "Verifying payment"
+                        else -> "Complete your payment"
                     },
-                    fontSize = 22.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = textPrimary
+                    color = textPrimary,
+                    textAlign = TextAlign.Center
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = viewModel.statusMessage,
                     fontSize = 14.sp,
                     color = textSecondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(30.dp))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(if (isDark) Color(0xFF151C1B) else Color.White)
+                        .border(1.dp, primaryGreen.copy(alpha = .28f), RoundedCornerShape(22.dp)).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Sportynix Booking", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Text("${bookingType.replaceFirstChar { it.uppercase() }} booking", fontSize = 14.sp, color = textSecondary)
+                    HorizontalDivider(color = textSecondary.copy(alpha = .16f))
+                    PaymentInfoRow("Pay now", checkoutResponse?.payment?.amount?.let { "LKR ${"%.2f".format(it)}" } ?: "LKR —", primaryGreen, textSecondary)
+                    PaymentInfoRow("Order", orderId.ifBlank { "Pending" }, textPrimary, textSecondary)
+                    checkoutResponse?.reservationExpiresAt?.let { expires ->
+                        PaymentInfoRow("Reserved until", expires, textPrimary, textSecondary)
+                    }
+                }
 
                 if (viewModel.step == PaymentStep.READY || viewModel.step == PaymentStep.WAITING) {
                     Button(
@@ -120,7 +162,7 @@ fun BookingAdvancePaymentPreviewScreen(
                                 isWebViewOpen = true
                             } else {
                                 viewModel.pollStatus(orderId) { list ->
-                                    onNavigateToConfirmation(list, "Normal")
+                                    onNavigateToConfirmation(list, bookingType)
                                 }
                             }
                         },
@@ -130,7 +172,9 @@ fun BookingAdvancePaymentPreviewScreen(
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryGreen)
                     ) {
-                        Text("Open Hosted Payment Gateway", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Icon(Icons.Default.CreditCard, null, tint = Color.White)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (viewModel.step == PaymentStep.READY) "Continue to card payment" else "Open card payment", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -138,7 +182,7 @@ fun BookingAdvancePaymentPreviewScreen(
                     OutlinedButton(
                         onClick = {
                             viewModel.pollStatus(orderId) { list ->
-                                onNavigateToConfirmation(list, "Normal")
+                                onNavigateToConfirmation(list, bookingType)
                             }
                         },
                         modifier = Modifier
@@ -146,11 +190,27 @@ fun BookingAdvancePaymentPreviewScreen(
                             .height(50.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Check Payment Status", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        Text("Check payment status", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                     }
                 } else if (viewModel.step == PaymentStep.VERIFYING) {
                     CircularProgressIndicator(color = primaryGreen)
+                } else if (viewModel.step == PaymentStep.SUCCESS) {
+                    Button(onClick = { onNavigateToConfirmation(viewModel.verifiedBookings, bookingType) },
+                        modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryGreen)) {
+                        Icon(Icons.Default.QrCode2, null, tint = Color.White)
+                        Spacer(Modifier.width(8.dp))
+                        Text("View booking QR", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                } else {
+                    Button(onClick = onNavigateBack, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryGreen)) {
+                        Text("Select slots again", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
+
+                Text("Sportynix never receives or stores your card number. Payment confirmation comes directly from the secure gateway.",
+                    fontSize = 12.sp, color = textSecondary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
 
             // Hosted Checkout WebView Dialog
@@ -159,7 +219,7 @@ fun BookingAdvancePaymentPreviewScreen(
                     onDismissRequest = {
                         isWebViewOpen = false
                         viewModel.pollStatus(orderId) { list ->
-                            onNavigateToConfirmation(list, "Normal")
+                            onNavigateToConfirmation(list, bookingType)
                         }
                     },
                     confirmButton = {},
@@ -175,7 +235,7 @@ fun BookingAdvancePaymentPreviewScreen(
                                                 if (url?.contains("/return/") == true || url?.contains("/status/") == true) {
                                                     isWebViewOpen = false
                                                     viewModel.pollStatus(orderId) { list ->
-                                                        onNavigateToConfirmation(list, "Normal")
+                                                        onNavigateToConfirmation(list, bookingType)
                                                     }
                                                 }
                                             }
@@ -190,5 +250,23 @@ fun BookingAdvancePaymentPreviewScreen(
                 )
             }
         }
+    }
+
+    if (showExitPrompt) {
+        AlertDialog(
+            onDismissRequest = { showExitPrompt = false },
+            title = { Text("Exit payment?") },
+            text = { Text("Your slot remains reserved until the pending-payment timer expires. Do you want to leave this payment screen?") },
+            confirmButton = { TextButton(onClick = { showExitPrompt = false; onNavigateBack() }) { Text("Exit", color = Color(0xFFDC2626)) } },
+            dismissButton = { TextButton(onClick = { showExitPrompt = false }) { Text("Stay") } }
+        )
+    }
+}
+
+@Composable
+private fun PaymentInfoRow(label: String, value: String, valueColor: Color, labelColor: Color) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 14.sp, color = labelColor)
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
     }
 }

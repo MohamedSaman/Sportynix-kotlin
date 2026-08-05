@@ -34,12 +34,15 @@ fun BookingCancellationReviewScreen(
     viewModel: BookingCancellationViewModel = hiltViewModel()
 ) {
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
     val cardBg = if (isDark) Color(0xFF1E262C) else Color.White
     val borderClr = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val bgClr = if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC)
+    val warningBg = if (isDark) Color(0xFF3B2A16) else Color(0xFFFFFBEB)
+    val warningBorder = if (isDark) Color(0xFFB7791F) else Color(0xFFF59E0B)
+    val warningText = if (isDark) Color(0xFFFCD34D) else Color(0xFF92400E)
 
     val isSeries = cancellationMode == "series"
 
@@ -134,20 +137,20 @@ fun BookingCancellationReviewScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFFEF3C7))
-                    .border(1.dp, Color(0xFFF59E0B), RoundedCornerShape(16.dp))
+                    .background(warningBg)
+                    .border(1.dp, warningBorder, RoundedCornerShape(16.dp))
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.Top
             ) {
-                Icon(imageVector = Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(26.dp))
+                Icon(imageVector = Icons.Default.WarningAmber, contentDescription = null, tint = warningText, modifier = Modifier.size(26.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("This action cannot be undone", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF92400E))
+                    Text("This action cannot be undone", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = warningText)
                     Text(
                         text = if (isSeries) "Cancelling releases all active generated slots for other users. Eligible refunds are queued per slot for Sportynix review."
                         else "Cancelling releases this court slot for other users. Refund approval depends on the policy below.",
                         fontSize = 13.sp,
-                        color = Color(0xFF92400E),
+                        color = warningText,
                         lineHeight = 18.sp
                     )
                 }
@@ -208,6 +211,9 @@ fun BookingCancellationReviewScreen(
                             Text("Refund deadline", fontSize = 14.sp, color = textSecondary)
                             Text(deadline, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = textSecondary)
                         }
+                    }
+                    policy?.message?.takeIf { it.isNotBlank() }?.let { message ->
+                        Text(message, fontSize = 13.sp, color = textSecondary, lineHeight = 18.sp)
                     }
                 }
             }

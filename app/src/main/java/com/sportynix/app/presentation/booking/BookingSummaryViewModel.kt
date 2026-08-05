@@ -11,6 +11,7 @@ import com.sportynix.app.data.local.PaymentSessionManager
 import com.sportynix.app.data.local.PendingBookingPaymentSession
 import com.sportynix.app.data.remote.api.BookingApiService
 import com.sportynix.app.data.remote.dto.*
+import com.sportynix.app.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -20,6 +21,9 @@ import javax.inject.Inject
 
 data class BookingSummaryUiState(
     val payload: BookingPayload? = null,
+    val userName: String = "N/A",
+    val userEmail: String = "N/A",
+    val userPhone: String = "N/A",
     val quote: QuoteResponseDto? = null,
     val savedCards: List<SavedCardDto> = emptyList(),
     val selectedSavedCard: SavedCardDto? = null,
@@ -38,16 +42,40 @@ data class BookingSummaryUiState(
 class BookingSummaryViewModel @Inject constructor(
     private val bookingApiService: BookingApiService,
     private val paymentSessionManager: PaymentSessionManager,
-    private val gson: Gson
+    private val gson: Gson,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
     var state by mutableStateOf(BookingSummaryUiState())
         private set
 
     fun initSummary(payload: BookingPayload) {
+        if (state.payload == payload) return
         state = state.copy(payload = payload)
+        loadUserDetails()
         fetchPaymentQuote()
         fetchSavedCards()
+    }
+
+    private fun loadUserDetails() {
+        fun applyUser(user: com.sportynix.app.data.remote.dto.UserDataDto?) {
+            val name = user?.fullName?.takeIf { it.isNotBlank() }
+                ?: listOfNotNull(user?.firstName, user?.lastName).joinToString(" ").trim().takeIf { it.isNotBlank() }
+                ?: "N/A"
+            state = state.copy(
+                userName = name,
+                userEmail = user?.email?.takeIf { it.isNotBlank() } ?: "N/A",
+                userPhone = user?.phoneNumber?.takeIf { it.isNotBlank() } ?: "N/A"
+            )
+        }
+        val cached = profileRepository.currentUser.value
+        if (cached != null) {
+            applyUser(cached)
+        } else {
+            viewModelScope.launch {
+                profileRepository.fetchProfile().onSuccess(::applyUser)
+            }
+        }
     }
 
     fun setPaymentOption(option: String) {
@@ -94,7 +122,14 @@ class BookingSummaryViewModel @Inject constructor(
                 )
                 val res = bookingApiService.getPaymentQuote(req)
                 if (res.isSuccessful && res.body() != null) {
-                    state = state.copy(quote = res.body()!!, isLoadingQuote = false)
+                    val quote = res.body()!!
+                    val serverOption = quote.paymentOption
+                        ?.takeIf { it == "advance" || it == "full" }
+                    state = state.copy(
+                        quote = quote,
+                        selectedPaymentOption = serverOption ?: state.selectedPaymentOption,
+                        isLoadingQuote = false
+                    )
                 } else {
                     state = state.copy(isLoadingQuote = false, errorMessage = "Failed to fetch payment quote")
                 }
@@ -120,6 +155,7 @@ class BookingSummaryViewModel @Inject constructor(
 
     fun confirmBooking(onSuccess: (PaymentCheckoutResponseDto) -> Unit) {
         val payload = state.payload ?: return
+        if (state.isSubmittingBooking || state.checkoutResult != null) return
         viewModelScope.launch {
             state = state.copy(isSubmittingBooking = true, errorMessage = null)
             try {
@@ -138,6 +174,9 @@ class BookingSummaryViewModel @Inject constructor(
                     date = payload.bookingDate,
                     selectedDays = payload.selectedDays,
                     slots = slotDtos,
+                    userName = state.userName.takeIf { it != "N/A" },
+                    userEmail = state.userEmail.takeIf { it != "N/A" },
+                    userNumber = state.userPhone.takeIf { it != "N/A" },
                     paymentOption = state.selectedPaymentOption,
                     savedCardId = state.selectedSavedCard?.id,
                     saveCard = state.saveCardForFuture,

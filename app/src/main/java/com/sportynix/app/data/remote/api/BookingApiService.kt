@@ -6,8 +6,12 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.*
+import okhttp3.ResponseBody
 
 interface BookingApiService {
+    @GET("api/permanent-bookings/")
+    suspend fun getPermanentBookings(@Query("sport_id") sportId: Int): Response<JsonElement>
+
     @GET("api/my-bookings/")
     suspend fun getUserBookings(
         @Query("page") page: Int = 1,
@@ -48,10 +52,10 @@ interface BookingApiService {
     ): Response<JsonElement>
 
     @POST("api/hold_slot/")
-    suspend fun holdSlot(@Body body: Map<String, Any>): Response<JsonElement>
+    suspend fun holdSlot(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<ResponseBody>
 
     @POST("api/release_slot/")
-    suspend fun releaseSlot(@Body body: Map<String, Any>): Response<JsonElement>
+    suspend fun releaseSlot(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<ResponseBody>
 
     @POST("api/convert_holds_to_bookings/")
     suspend fun convertHoldsToBookings(@Body body: Map<String, Any>): Response<JsonElement>

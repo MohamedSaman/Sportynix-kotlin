@@ -3,6 +3,7 @@ package com.sportynix.app.presentation.profile
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +37,7 @@ import com.sportynix.app.presentation.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,10 +54,10 @@ fun EditProfileScreen(
     val borderColor = if (isDark) DarkSurfaceVariant else LightSurfaceVariant
     val textPrimary = if (isDark) TextPrimaryDark else TextPrimaryLight
     val textSecondary = if (isDark) TextSecondaryDark else TextSecondaryLight
-    val accentGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val accentGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         viewModel.onImageSelected(uri)
     }
@@ -180,7 +184,7 @@ fun EditProfileScreen(
 
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
-                                    onClick = { photoPickerLauncher.launch("image/*") },
+                                    onClick = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                     colors = ButtonDefaults.buttonColors(containerColor = accentGreen.copy(alpha = 0.12f)),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
@@ -242,7 +246,7 @@ fun EditProfileScreen(
                         Text("Gender", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(
-                                "prefer_not_to_say" to "Not set",
+                                "prefer_not_to_say" to "Prefer not to say",
                                 "male" to "Male",
                                 "female" to "Female"
                             ).forEach { (value, label) ->
@@ -275,7 +279,11 @@ fun EditProfileScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 val sdf = SimpleDateFormat("dd MMM yyyy", Locale.US)
-                                Text(sdf.format(state.dobDate), fontSize = 15.sp, color = textPrimary)
+                                Column {
+                                    Text(sdf.format(state.dobDate), fontSize = 15.sp, color = textPrimary)
+                                    val age = Calendar.getInstance().get(Calendar.YEAR) - Calendar.getInstance().apply { time = state.dobDate }.get(Calendar.YEAR)
+                                    Text("Age $age", fontSize = 11.sp, color = textSecondary)
+                                }
                                 Icon(Icons.Default.CalendarToday, contentDescription = null, tint = accentGreen, modifier = Modifier.size(20.dp))
                             }
                         }
@@ -312,7 +320,8 @@ fun EditProfileScreen(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             trailingIcon = {
-                                if (state.user?.isPhoneVerified == true) {
+                                val phoneVerified = state.user?.phoneVerifiedAt != null && state.phone.trim() == state.user.phone.trim()
+                                if (phoneVerified) {
                                     Icon(Icons.Default.CheckCircle, contentDescription = "Verified", tint = accentGreen)
                                 } else {
                                     Text(
@@ -325,6 +334,11 @@ fun EditProfileScreen(
                                             .clickable { viewModel.setShowPhoneModal(true) }
                                     )
                                 }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            supportingText = {
+                                val changed = state.phone.trim() != state.user?.phone.orEmpty().trim()
+                                Text(if (changed) "${state.phone.length}/10 digits • Needs verification" else "${state.phone.length}/10 digits")
                             }
                         )
 
@@ -365,6 +379,13 @@ fun EditProfileScreen(
                                 }
                                 Icon(Icons.Default.LocationOn, contentDescription = null, tint = accentGreen)
                             }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(value = state.homeDistrict, onValueChange = {}, readOnly = true,
+                                label = { Text("District") }, modifier = Modifier.weight(1f))
+                            OutlinedTextField(value = state.homeProvince, onValueChange = {}, readOnly = true,
+                                label = { Text("Province") }, modifier = Modifier.weight(1f))
                         }
                     }
 
@@ -496,6 +517,71 @@ fun EditProfileScreen(
                     confirmButton = { TextButton(onClick = viewModel::confirmRemovePhoto) { Text("Remove", color = Color.Red, fontWeight = FontWeight.Bold) } },
                     dismissButton = { TextButton(onClick = viewModel::dismissRemoveConfirmation) { Text("Cancel") } }
                 )
+            }
+
+            if (state.showDobPicker) {
+                val maxDate = remember { Calendar.getInstance().apply { add(Calendar.YEAR, -13) }.timeInMillis }
+                val pickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = state.dobDate.time,
+                    selectableDates = object : SelectableDates {
+                        override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= maxDate
+                    }
+                )
+                ModalBottomSheet(onDismissRequest = { viewModel.setShowDobPicker(false) }) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        TextButton(onClick = { viewModel.setShowDobPicker(false) }) { Text("Close") }
+                        Text("Date of Birth", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+                        TextButton(onClick = {
+                            pickerState.selectedDateMillis?.let { viewModel.onDobChanged(Date(it)) }
+                            viewModel.setShowDobPicker(false)
+                        }) { Text("Done", color = accentGreen, fontWeight = FontWeight.Bold) }
+                    }
+                    DatePicker(state = pickerState, showModeToggle = false)
+                }
+            }
+
+            if (state.showPhoneModal) {
+                ModalBottomSheet(onDismissRequest = { viewModel.setShowPhoneModal(false) }) {
+                    Column(Modifier.fillMaxWidth().padding(24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(if (state.phoneChallengeId == null) "Verify Phone" else "Enter OTP", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text(if (state.phoneChallengeId == null) "We'll send a verification code to ${state.phone}." else "Enter the six-digit code sent to ${state.phone}.", color = textSecondary)
+                        state.phoneVerificationError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        if (state.phoneChallengeId == null) {
+                            Button(onClick = viewModel::sendPhoneOtp, enabled = !state.isSendingPhoneOtp && state.phone.matches(Regex("^07\\d{8}$")), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = accentGreen)) {
+                                if (state.isSendingPhoneOtp) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Text("Send OTP")
+                            }
+                        } else {
+                            OutlinedTextField(value = state.phoneOtp, onValueChange = viewModel::onPhoneOtpChanged, label = { Text("6-digit OTP") }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
+                            Button(onClick = viewModel::verifyPhoneOtp, enabled = !state.isVerifyingPhoneOtp && state.phoneOtp.length == 6, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = accentGreen)) {
+                                if (state.isVerifyingPhoneOtp) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Text("Verify")
+                            }
+                            TextButton(onClick = viewModel::sendPhoneOtp, enabled = !state.isSendingPhoneOtp, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(if (state.isSendingPhoneOtp) "Resending…" else "Didn't receive it? Resend") }
+                        }
+                    }
+                }
+            }
+
+            if (state.showLocationPicker) {
+                ModalBottomSheet(onDismissRequest = { viewModel.setShowLocationPicker(false) }) {
+                    Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Select Home City", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(value = state.locationSearch, onValueChange = viewModel::searchLocations, label = { Text("Search cities") }, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        if (state.isSearchingLocations) LinearProgressIndicator(Modifier.fillMaxWidth(), color = accentGreen)
+                        Column(Modifier.verticalScroll(rememberScrollState())) {
+                            state.locationResults.forEach { city ->
+                                ListItem(
+                                    headlineContent = { Text(city.nameEn, fontWeight = FontWeight.SemiBold) },
+                                    supportingContent = { Text("${city.districtName}, ${city.provinceName}") },
+                                    leadingContent = { Icon(Icons.Default.LocationOn, null, tint = accentGreen) },
+                                    modifier = Modifier.clickable { viewModel.onCitySelected(city.id, city.nameEn, city.districtName, city.provinceName) }
+                                )
+                                HorizontalDivider()
+                            }
+                            if (!state.isSearchingLocations && state.locationResults.isEmpty()) Text("No cities found", color = textSecondary, modifier = Modifier.padding(16.dp))
+                        }
+                    }
+                }
             }
         }
     }

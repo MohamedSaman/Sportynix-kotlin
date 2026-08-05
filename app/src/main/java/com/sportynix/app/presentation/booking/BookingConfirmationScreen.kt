@@ -25,31 +25,14 @@ fun BookingConfirmationScreen(
     }
 
     Scaffold(
-        containerColor = if (isDark) Color(0xFF090B18) else Color(0xFFF8FAFC)
+        containerColor = if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC)
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             BookingConfirmationStack(
-                bookings = if (bookings.isNotEmpty()) bookings else listOf(
-                    ConfirmedBookingDto(
-                        id = "1",
-                        qrCode = "SPX-DEMO-QR",
-                        startTime = "18:00",
-                        endTime = "19:00",
-                        price = 500.0,
-                        duration = 60,
-                        bookingDate = "2026-07-31",
-                        bookingReference = "REF12345",
-                        paymentStatus = "Confirmed",
-                        paymentAmount = 500.0,
-                        paymentCurrency = "LKR",
-                        receiptNumber = "REC-001",
-                        receiptDownloadUrl = null
-                    )
-                ),
+                bookings = bookings,
                 bookingType = bookingType,
                 onAssignTeam = {
-                    val firstId = bookings.firstOrNull()?.id ?: "1"
-                    onNavigateToBookingDetail(firstId)
+                    bookings.firstOrNull()?.id?.let(onNavigateToBookingDetail)
                 },
                 onHome = onNavigateToHome
             )

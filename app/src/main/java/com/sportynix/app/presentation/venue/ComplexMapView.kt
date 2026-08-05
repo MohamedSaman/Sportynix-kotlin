@@ -38,12 +38,12 @@ fun ComplexMapView(
 ) {
     val context = LocalContext.current
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
     val cardBg = if (isDark) Color(0xFF1E262C) else Color.White
     val borderClr = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-    val bgClr = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val bgClr = if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC)
 
     var zoomLevel by remember { mutableFloatStateOf(15f) }
 

@@ -30,13 +30,17 @@ class BookingCancellationViewModel @Inject constructor(
     fun loadBooking(bookingId: Int) {
         viewModelScope.launch {
             isLoadingPolicy = true
+            errorMessage = null
             try {
                 val res = bookingApiService.getBookingDetail(bookingId)
                 if (res.isSuccessful && res.body() != null) {
                     booking = res.body()!!
+                } else {
+                    errorMessage = "Unable to load the latest booking and refund policy."
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Error fetching booking policy")
+                errorMessage = e.localizedMessage ?: "Network error while loading booking details."
             } finally {
                 isLoadingPolicy = false
             }

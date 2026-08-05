@@ -32,40 +32,47 @@ class BookingPaymentViewModel @Inject constructor(
     var verifiedBookings by mutableStateOf<List<ConfirmedBookingDto>>(emptyList())
         private set
 
+    private var pollingInFlight = false
+
     fun pollStatus(orderId: String, onSuccess: (List<ConfirmedBookingDto>) -> Unit) {
-        if (orderId.isEmpty()) return
+        if (orderId.isBlank() || pollingInFlight) return
+        pollingInFlight = true
         viewModelScope.launch {
-            step = PaymentStep.VERIFYING
-            statusMessage = "Verifying online card payment..."
-            var attempts = 0
-            while (attempts < 15) {
-                try {
-                    val res = bookingApiService.getPaymentStatus(orderId)
-                    if (res.isSuccessful && res.body() != null) {
-                        val body = res.body()!!
-                        val pStatus = (body.paymentStatus ?: body.gatewayState ?: "").lowercase()
-                        if (listOf("succeeded", "confirmed", "success", "completed").contains(pStatus)) {
-                            step = PaymentStep.SUCCESS
-                            statusMessage = "Your payment was verified and booking is confirmed!"
-                            val list = body.confirmationBookings ?: emptyList()
-                            verifiedBookings = list
-                            paymentSessionManager.clearPendingSession()
-                            onSuccess(list)
-                            return@launch
-                        } else if (listOf("failed", "cancelled", "canceled", "declined").contains(pStatus)) {
-                            step = PaymentStep.FAILED
-                            statusMessage = "Payment was cancelled or declined. Please try again."
-                            return@launch
+            try {
+                step = PaymentStep.VERIFYING
+                statusMessage = "Verifying online card payment..."
+                var attempts = 0
+                while (attempts < 15) {
+                    try {
+                        val res = bookingApiService.getPaymentStatus(orderId)
+                        if (res.isSuccessful && res.body() != null) {
+                            val body = res.body()!!
+                            val pStatus = (body.paymentStatus ?: body.gatewayState ?: "").lowercase()
+                            if (listOf("succeeded", "confirmed", "success", "completed").contains(pStatus)) {
+                                step = PaymentStep.SUCCESS
+                                statusMessage = "Your payment was verified and booking is confirmed!"
+                                val list = body.confirmationBookings ?: emptyList()
+                                verifiedBookings = list
+                                paymentSessionManager.clearPendingSession()
+                                onSuccess(list)
+                                return@launch
+                            } else if (listOf("failed", "cancelled", "canceled", "declined").contains(pStatus)) {
+                                step = PaymentStep.FAILED
+                                statusMessage = "Payment was cancelled or declined. Please try again."
+                                return@launch
+                            }
                         }
+                    } catch (e: Exception) {
+                        Timber.e(e, "Error polling payment status")
                     }
-                } catch (e: Exception) {
-                    Timber.e(e, "Error polling payment status")
+                    attempts++
+                    delay(3000)
                 }
-                attempts++
-                delay(3000)
+                step = PaymentStep.FAILED
+                statusMessage = "Payment verification timed out. Please check your booking history."
+            } finally {
+                pollingInFlight = false
             }
-            step = PaymentStep.FAILED
-            statusMessage = "Payment verification timed out. Please check your booking history."
         }
     }
 }

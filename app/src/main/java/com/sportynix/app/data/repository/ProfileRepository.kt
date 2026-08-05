@@ -2,7 +2,10 @@ package com.sportynix.app.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.sportynix.app.data.remote.api.UserApiService
 import com.sportynix.app.data.remote.dto.APIFavoriteDto
 import com.sportynix.app.data.remote.dto.BlockedUserDto
@@ -112,14 +115,12 @@ class ProfileRepository @Inject constructor(
                 addPart("is_show_contact", isShowContact.toString())
                 addPart("sports_preferences", gson.toJson(sportsPreferences))
 
-                if (cricketPreferredVariant != "all" && cricketPreferredVariant.isNotEmpty()) {
-                    addPart("cricket_preferred_variant", cricketPreferredVariant)
-                }
-                if (cricketPrimaryRole.isNotEmpty()) addPart("cricket_primary_role", cricketPrimaryRole)
-                if (cricketPlayingPosition.isNotEmpty()) addPart("cricket_playing_position", cricketPlayingPosition)
-                if (cricketBattingStyle.isNotEmpty()) addPart("cricket_batting_style", cricketBattingStyle)
-                if (cricketBowlingStyle.isNotEmpty()) addPart("cricket_bowling_style", cricketBowlingStyle)
-                if (cricketJerseyNumber.isNotEmpty()) addPart("cricket_jersey_number", cricketJerseyNumber)
+                addPart("cricket_preferred_variant", cricketPreferredVariant)
+                addPart("cricket_primary_role", cricketPrimaryRole)
+                addPart("cricket_playing_position", cricketPlayingPosition)
+                addPart("cricket_batting_style", cricketBattingStyle)
+                addPart("cricket_bowling_style", cricketBowlingStyle)
+                addPart("cricket_jersey_number", cricketJerseyNumber)
 
                 var photoPart: MultipartBody.Part? = null
                 if (imageUri != null) {
@@ -138,7 +139,7 @@ class ProfileRepository @Inject constructor(
                     _currentUser.value = updated
                     Result.success(updated)
                 } else {
-                    Result.failure(Exception(response.errorBody()?.string() ?: "Failed to update profile"))
+                    Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to update profile")))
                 }
             } else {
                 val body = mutableMapOf<String, Any>(
@@ -161,13 +162,11 @@ class ProfileRepository @Inject constructor(
                 if (!homeCity.isNullOrEmpty()) body["home_city"] = homeCity
                 if (homeCityId != null) body["home_city_id"] = homeCityId
 
-                if (cricketPreferredVariant != "all" && cricketPreferredVariant.isNotEmpty()) {
-                    body["cricket_preferred_variant"] = cricketPreferredVariant
-                }
-                if (cricketPrimaryRole.isNotEmpty()) body["cricket_primary_role"] = cricketPrimaryRole
-                if (cricketBattingStyle.isNotEmpty()) body["cricket_batting_style"] = cricketBattingStyle
-                if (cricketBowlingStyle.isNotEmpty()) body["cricket_bowling_style"] = cricketBowlingStyle
-                cricketJerseyNumber.toIntOrNull()?.let { body["cricket_jersey_number"] = it }
+                body["cricket_preferred_variant"] = cricketPreferredVariant
+                body["cricket_primary_role"] = cricketPrimaryRole
+                body["cricket_batting_style"] = cricketBattingStyle
+                body["cricket_bowling_style"] = cricketBowlingStyle
+                body["cricket_jersey_number"] = cricketJerseyNumber
 
                 val response = apiService.updateProfileJson(body)
                 if (response.isSuccessful && response.body() != null) {
@@ -175,7 +174,7 @@ class ProfileRepository @Inject constructor(
                     _currentUser.value = updated
                     Result.success(updated)
                 } else {
-                    Result.failure(Exception(response.errorBody()?.string() ?: "Failed to update profile"))
+                    Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to update profile")))
                 }
             }
         } catch (e: Exception) {
@@ -290,7 +289,7 @@ class ProfileRepository @Inject constructor(
             val response = apiService.getFavorites()
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
-            } else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to fetch favorites"))
+            } else Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to fetch favorites")))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -312,7 +311,7 @@ class ProfileRepository @Inject constructor(
         return try {
             val response = apiService.removeFavorite(id)
             if (response.isSuccessful) Result.success(Unit)
-            else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to remove favorite"))
+            else Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to remove favorite")))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -419,15 +418,40 @@ class ProfileRepository @Inject constructor(
         return try {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return null
             val file = File(context.cacheDir, "profile_upload_${System.currentTimeMillis()}.jpg")
-            val outputStream = FileOutputStream(file)
-            inputStream.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
-                }
+            val bitmap = inputStream.use(BitmapFactory::decodeStream) ?: return null
+            val maxEdge = 1600
+            val scale = minOf(1f, maxEdge.toFloat() / maxOf(bitmap.width, bitmap.height).toFloat())
+            val outputBitmap = if (scale < 1f) Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).toInt().coerceAtLeast(1),
+                (bitmap.height * scale).toInt().coerceAtLeast(1),
+                true
+            ) else bitmap
+            FileOutputStream(file).use { output ->
+                if (!outputBitmap.compress(Bitmap.CompressFormat.JPEG, 88, output)) return null
             }
+            if (outputBitmap !== bitmap) outputBitmap.recycle()
+            bitmap.recycle()
             file
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun parseBackendError(raw: String?, fallback: String): String {
+        if (raw.isNullOrBlank()) return fallback
+        return runCatching {
+            val root = gson.fromJson(raw, JsonElement::class.java)
+            if (!root.isJsonObject) return@runCatching raw
+            root.asJsonObject.entrySet().flatMap { (field, value) ->
+                val label = field.split('_').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
+                val messages = when {
+                    value.isJsonArray -> value.asJsonArray.mapNotNull { it.takeUnless(JsonElement::isJsonNull)?.asString }
+                    value.isJsonPrimitive -> listOf(value.asString)
+                    else -> listOf(value.toString())
+                }
+                messages.map { message -> if (field in setOf("detail", "error", "message", "non_field_errors")) message else "$label: $message" }
+            }.joinToString("\n").ifBlank { fallback }
+        }.getOrDefault(fallback)
     }
 }

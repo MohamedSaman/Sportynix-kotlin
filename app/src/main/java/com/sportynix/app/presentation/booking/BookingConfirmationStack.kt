@@ -1,6 +1,7 @@
 package com.sportynix.app.presentation.booking
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -29,7 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
 import com.sportynix.app.data.remote.dto.ConfirmedBookingDto
 import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 import kotlinx.coroutines.launch
@@ -51,7 +54,7 @@ fun BookingConfirmationStack(
 ) {
     val context = LocalContext.current
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val primaryGreen = if (isDark) Color(0xFF22C55E) else SportynixGreenPrimary
+    val primaryGreen = if (isDark) Color(0xFF00D982) else SportynixGreenPrimary
     val textPrimary = if (isDark) Color.White else Color(0xFF1E293B)
     val textSecondary = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
     val cardBg = if (isDark) Color(0xFF1C1C26) else Color.White
@@ -72,7 +75,7 @@ fun BookingConfirmationStack(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDark) Color(0xFF090B18) else Color(0xFFF8FAFC))
+            .background(if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC))
             .padding(16.dp)
     ) {
         Column(
@@ -195,7 +198,8 @@ fun BookingConfirmationStack(
                                 }
                             }
 
-                            // QR Code Simulation or Image
+                            // Generate the QR locally from the backend value; never send booking
+                            // data to a third-party QR service.
                             Box(
                                 modifier = Modifier
                                     .size(140.dp)
@@ -205,8 +209,11 @@ fun BookingConfirmationStack(
                                     .padding(10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                AsyncImage(
-                                    model = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${booking.qrCode ?: booking.id}",
+                                androidx.compose.foundation.Image(
+                                    bitmap = remember(booking.qrCode, booking.id) {
+                                        createQrBitmap(booking.qrCode?.takeIf { it.isNotBlank() }
+                                            ?: "booking-${booking.id}").asImageBitmap()
+                                    },
                                     contentDescription = "QR Code",
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Fit
@@ -253,7 +260,7 @@ fun BookingConfirmationStack(
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Booking Details", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Text("Assign Team", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                 }
 
                 Button(
@@ -268,5 +275,16 @@ fun BookingConfirmationStack(
                 }
             }
         }
+    }
+}
+
+private fun createQrBitmap(value: String, size: Int = 512): Bitmap {
+    val matrix = MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, size, size)
+    val pixels = IntArray(size * size)
+    for (y in 0 until size) for (x in 0 until size) {
+        pixels[y * size + x] = if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+    }
+    return Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+        setPixels(pixels, 0, size, 0, 0, size, size)
     }
 }
