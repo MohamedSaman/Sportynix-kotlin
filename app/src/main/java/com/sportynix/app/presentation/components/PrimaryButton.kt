@@ -39,7 +39,7 @@ fun PrimaryButton(
     isLoading: Boolean = false
 ) {
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -52,7 +52,7 @@ fun PrimaryButton(
             .defaultMinSize(minHeight = 44.dp)
             .scale(buttonScale)
             .shadow(
-                elevation = if (enabled) 8.dp else 0.dp,
+                elevation = if (enabled && !isLoading) 10.dp else 0.dp,
                 shape = shape,
                 ambientColor = NeonGreen.copy(alpha = 0.25f),
                 spotColor = NeonGreen.copy(alpha = 0.35f)
@@ -61,7 +61,8 @@ fun PrimaryButton(
             .background(PrimaryNeonGradient, alpha = finalAlpha)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.25f),
+                color = if (enabled && !isLoading) NeonGreen.copy(alpha = 0.62f)
+                else Color.White.copy(alpha = 0.14f),
                 shape = shape
             )
             .clickable(
@@ -81,7 +82,7 @@ fun PrimaryButton(
         } else {
             Text(
                 text = text,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 letterSpacing = 0.3.sp

@@ -65,7 +65,19 @@ sealed class Screen(val route: String) {
     object Search : Screen("search")
     object Favorites : Screen("favorites")
     object Team : Screen("team")
+    object Challenge : Screen("challenge")
+    object TeamLink : Screen("team_link?tab={tab}&teamId={teamId}&inviteToken={inviteToken}") {
+        fun createRoute(tab: Int = 0, teamId: Int? = null, inviteToken: String? = null): String {
+            val query = mutableListOf("tab=$tab")
+            teamId?.let { query += "teamId=$it" }
+            inviteToken?.let { query += "inviteToken=${android.net.Uri.encode(it)}" }
+            return "team_link?${query.joinToString("&")}"
+        }
+    }
     object TeamInvitations : Screen("team_invitations")
+    object TeamRegistration : Screen("team_registration/{leagueId}/{leagueName}/{sportType}") {
+        fun createRoute(leagueId: String, leagueName: String, sportType: String) = "team_registration/${android.net.Uri.encode(leagueId)}/${android.net.Uri.encode(leagueName)}/${android.net.Uri.encode(sportType)}"
+    }
     object Points : Screen("points")
     object Referrals : Screen("referrals")
     object PaymentMethods : Screen("payment_methods")

@@ -100,8 +100,8 @@ fun GlassBottomNavigation(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = if (isDark) listOf(
-                            Color(0xE6131B2E),
-                            Color(0xCC0B0F19)
+                            Color(0xE61A2A40),
+                            Color(0xCC0B1220)
                         ) else listOf(
                             Color(0xF0FFFFFF),
                             Color(0xD9F1F5F9)
@@ -167,7 +167,12 @@ fun GlassBottomNavigation(
                             modifier = Modifier
                                 .size(width = 48.dp, height = 30.dp)
                                 .clip(RoundedCornerShape(15.dp))
-                                .background(if (selected) activeBg else Color.Transparent),
+                                .background(if (selected) activeBg else Color.Transparent)
+                                .border(
+                                    width = if (selected) 0.7.dp else 0.dp,
+                                    color = if (selected) NeonGreen.copy(alpha = 0.34f) else Color.Transparent,
+                                    shape = RoundedCornerShape(15.dp)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(

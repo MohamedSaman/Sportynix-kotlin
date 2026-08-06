@@ -23,6 +23,7 @@ import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 fun LeagueDetailScreen(
     leagueId: String,
     onNavigateBack: () -> Unit,
+    onNavigateToTeamRegistration: (leagueName: String, sportType: String) -> Unit = { _, _ -> },
     viewModel: LeagueViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -66,6 +67,15 @@ fun LeagueDetailScreen(
                         text = { Text(title, fontWeight = FontWeight.SemiBold) }
                     )
                 }
+            }
+
+            if (state.selectedLeague != null) {
+                Button(
+                    onClick = { state.selectedLeague?.let { onNavigateToTeamRegistration(it.name, it.sport) } },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SportynixGreenPrimary),
+                    shape = RoundedCornerShape(16.dp)
+                ) { Text("Register a team for this league", fontWeight = FontWeight.Bold) }
             }
 
             if (state.isLoading) {

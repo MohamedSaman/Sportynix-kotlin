@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sportynix.app.presentation.theme.NeonGreen
 
 @Composable
 fun LiquidTabBar(
@@ -39,13 +40,13 @@ fun LiquidTabBar(
     val bubbleHeight = 48.dp
 
     // Color definitions matching Swift LiquidTabBar.swift — NO green icons
-    val activeColor = if (isDark) Color.White.copy(alpha = 0.95f) else Color(0xFF101014).copy(alpha = 0.92f)
-    val inactiveColor = if (isDark) Color.White.copy(alpha = 0.35f) else Color(0xFF666670)
+    val activeColor = if (isDark) NeonGreen else Color(0xFF0D8A4F)
+    val inactiveColor = if (isDark) Color.White.copy(alpha = 0.52f) else Color(0xFF667085)
 
-    val pillBackground = if (isDark) Color(0xFF1E262C).copy(alpha = 0.65f) else Color.White.copy(alpha = 0.78f)
-    val pillBorderColor = if (isDark) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.50f)
-    val bubbleBackground = if (isDark) Color.White.copy(alpha = 0.12f) else Color(0xFF0F172A).copy(alpha = 0.10f)
-    val bubbleBorderColor = if (isDark) Color.White.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.65f)
+    val pillBackground = if (isDark) Color(0xCC0D1728) else Color.White.copy(alpha = 0.78f)
+    val pillBorderColor = if (isDark) NeonGreen.copy(alpha = 0.24f) else Color.White.copy(alpha = 0.50f)
+    val bubbleBackground = if (isDark) NeonGreen.copy(alpha = 0.18f) else Color(0xFF0F172A).copy(alpha = 0.10f)
+    val bubbleBorderColor = if (isDark) NeonGreen.copy(alpha = 0.50f) else Color.White.copy(alpha = 0.65f)
 
     var totalDrag by remember { mutableFloatStateOf(0f) }
 

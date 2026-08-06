@@ -30,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,6 +64,7 @@ fun HomeScreen(
     onNavigateToTournaments: () -> Unit = {},
     onNavigateToLiveCricket: (String) -> Unit = {},
     onNavigateToAuction: (String) -> Unit = {},
+    onNavigateToChallenge: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state = viewModel.state
@@ -216,15 +218,30 @@ fun HomeScreen(
                             val catName = category.name
                             val isSelected = state.selectedCategory == catName
                             val chipBg = if (isSelected) {
-                                primaryGreen
+                                Brush.horizontalGradient(listOf(Color(0xFF00B86B), Color(0xFF00E58A)))
                             } else {
-                                if (isDark) Color(0xFF1E242B) else Color(0xFFE2E8F0)
+                                Brush.horizontalGradient(
+                                    if (isDark) listOf(Color(0xB31A2A40), Color(0x99111B2D))
+                                    else listOf(Color(0xFFE2E8F0), Color(0xFFF1F5F9))
+                                )
                             }
 
                             Row(
                                 modifier = Modifier
+                                    .shadow(
+                                        elevation = if (isSelected) 8.dp else 0.dp,
+                                        shape = RoundedCornerShape(20.dp),
+                                        ambientColor = primaryGreen.copy(alpha = 0.34f),
+                                        spotColor = primaryGreen.copy(alpha = 0.44f)
+                                    )
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(chipBg)
+                                    .border(
+                                        width = if (isSelected) 1.2.dp else 1.dp,
+                                        color = if (isSelected) Color(0xFF00F09A).copy(alpha = 0.95f)
+                                        else if (isDark) primaryGreen.copy(alpha = 0.48f) else Color(0xFFCBD5E1),
+                                        shape = RoundedCornerShape(20.dp)
+                                    )
                                     .clickable { viewModel.selectCategory(catName) }
                                     .padding(horizontal = 16.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -559,7 +576,7 @@ fun HomeScreen(
                                 banner = banner,
                                 onClick = {
                                     if (banner.navigateTo == "Challenge") {
-                                        onNavigateToLeagues()
+                                        onNavigateToChallenge()
                                     }
                                 }
                             )
@@ -723,7 +740,7 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(115.dp)
-                                    .clickable { onNavigateToLeagues() },
+                                    .clickable { onNavigateToChallenge() },
                                 shape = RoundedCornerShape(20.dp),
                                 backgroundColor = if (isDark) Color(0xFF0F1E38) else Color(0xFFEBF2FF),
                                 borderColor = Color(0xFF2563EB).copy(alpha = 0.4f),

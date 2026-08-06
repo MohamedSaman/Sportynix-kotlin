@@ -72,7 +72,7 @@ interface UserApiService {
     suspend fun deleteAccount(): Response<JsonElement>
 
     @GET("api/favorites/")
-    suspend fun getFavorites(): Response<List<APIFavoriteDto>>
+    suspend fun getFavorites(): Response<JsonElement>
 
     @POST("api/favorites/")
     suspend fun addFavorite(@Body body: Map<String, String>): Response<APIFavoriteDto>

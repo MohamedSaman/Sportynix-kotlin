@@ -52,7 +52,7 @@ fun BookingDetailScreen(
     val bgClr = if (isDark) Color(0xFF070C16) else Color(0xFFF8FAFC)
 
     fun statusColor(status: String): Color = when (status.lowercase()) {
-        "completed" -> Color(0xFF22C55E)
+        "completed" -> Color(0xFF00D982)
         "cancelled", "canceled" -> Color(0xFFEF4444)
         "no-show", "noshow" -> Color(0xFFF59E0B)
         "ongoing", "playing" -> Color(0xFFF59E0B)

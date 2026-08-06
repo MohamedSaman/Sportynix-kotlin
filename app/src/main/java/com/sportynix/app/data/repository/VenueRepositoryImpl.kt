@@ -309,7 +309,15 @@ class VenueRepositoryImpl @Inject constructor(
         return try {
             val response = apiService.getFavorites()
             if (response.isSuccessful && response.body() != null) {
-                ApiResult.Success(response.body()!!)
+                val root = response.body()!!
+                val elements = when {
+                    root.isJsonArray -> root.asJsonArray.toList()
+                    root.isJsonObject -> listOf("favorites", "results", "data", "items").firstNotNullOfOrNull { key ->
+                        root.asJsonObject.get(key)?.takeIf { it.isJsonArray }?.asJsonArray?.toList()
+                    }.orEmpty()
+                    else -> emptyList()
+                }
+                ApiResult.Success(elements.mapNotNull { element -> runCatching { gson.fromJson(element, FavoriteDto::class.java) }.getOrNull() })
             } else {
                 ApiResult.Error(code = response.code(), message = "Failed to fetch favorites")
             }

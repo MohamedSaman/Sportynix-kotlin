@@ -62,6 +62,9 @@ fun SportDetailScreen(
     LaunchedEffect(intVenueId) {
         viewModel.initVenue(intVenueId)
     }
+    LaunchedEffect(intSportId) {
+        viewModel.initSportFavorite(intSportId)
+    }
 
     val matchedSport = remember(state.venueData, intSportId) {
         state.venueData?.sports?.firstOrNull { it.id == intSportId }
@@ -78,8 +81,6 @@ fun SportDetailScreen(
     // Sport Reviews State
     var sportReviews by remember { mutableStateOf<List<VenueReviewDto>>(emptyList()) }
     var isLoadingReviews by remember { mutableStateOf(true) }
-    var isFavorite by remember { mutableStateOf(false) }
-    var favoriteId by remember { mutableStateOf<Int?>(null) }
     var showWriteReviewSheet by remember { mutableStateOf(false) }
     var editingReview by remember { mutableStateOf<VenueReviewDto?>(null) }
     var showImagePreview by remember { mutableStateOf(false) }
@@ -260,13 +261,13 @@ fun SportDetailScreen(
                         .size(42.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.4f))
-                        .clickable { isFavorite = !isFavorite },
+                        .clickable { viewModel.toggleSportFavorite(intSportId) },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        imageVector = if (state.isSportFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Favorite",
-                        tint = if (isFavorite) Color.Red else Color.White,
+                        tint = if (state.isSportFavorite) Color.Red else Color.White,
                         modifier = Modifier.size(20.dp)
                     )
                 }

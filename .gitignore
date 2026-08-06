@@ -1,5 +1,7 @@
 *.iml
 .gradle
+/.gradle-home/
+gradle-*.log
 .gradle-user/
 .kotlin/
 /local.properties

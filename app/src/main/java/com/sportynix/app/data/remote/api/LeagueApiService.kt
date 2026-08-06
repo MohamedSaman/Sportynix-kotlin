@@ -5,6 +5,11 @@ import com.sportynix.app.data.remote.dto.LeagueDto
 import com.sportynix.app.data.remote.dto.LeagueTeamDto
 import com.sportynix.app.data.remote.dto.PlayerStatDto
 import com.sportynix.app.data.remote.dto.StandingDto
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import retrofit2.Response
+import retrofit2.http.Body
+import retrofit2.http.POST
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -42,4 +47,7 @@ interface LeagueApiService {
     suspend fun getLeagueTeams(
         @Query("league") leagueId: String? = null
     ): List<LeagueTeamDto>
+
+    @POST("api/league/leagues/{id}/register-team/")
+    suspend fun registerTeam(@Path("id") leagueId: String, @Body body: JsonObject): Response<JsonElement>
 }

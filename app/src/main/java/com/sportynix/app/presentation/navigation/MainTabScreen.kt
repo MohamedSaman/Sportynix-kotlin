@@ -35,6 +35,7 @@ fun MainTabScreen(
     onNavigateToHelpSupport: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToTeam: () -> Unit,
+    onNavigateToChallenge: () -> Unit = {},
     onNavigateToSignIn: () -> Unit,
     viewModel: MainNavigationViewModel = hiltViewModel()
 ) {
@@ -94,6 +95,7 @@ fun MainTabScreen(
                         onNavigateToLeagues = {
                             viewModel.selectTab(TabItem.LEAGUE)
                         },
+                        onNavigateToChallenge = onNavigateToChallenge,
                         onNavigateToTournaments = onNavigateToTournaments,
                         onNavigateToLiveCricket = onNavigateToLiveCricket,
                         onNavigateToAuction = onNavigateToAuction

@@ -8,8 +8,10 @@ import com.sportynix.app.core.network.TokenAuthenticator
 import com.sportynix.app.data.remote.api.AuthApiService
 import com.sportynix.app.data.remote.api.BookingApiService
 import com.sportynix.app.data.remote.api.ChatApiService
+import com.sportynix.app.data.remote.api.ChallengeApiService
 import com.sportynix.app.data.remote.api.NotificationApiService
 import com.sportynix.app.data.remote.api.SportsApiService
+import com.sportynix.app.data.remote.api.TeamApiService
 import com.sportynix.app.data.remote.api.UserApiService
 import com.sportynix.app.data.remote.api.VenueApiService
 import dagger.Module
@@ -98,6 +100,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideTeamApiService(retrofit: Retrofit): TeamApiService {
+        return retrofit.create(TeamApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideNotificationApiService(retrofit: Retrofit): NotificationApiService {
         return retrofit.create(NotificationApiService::class.java)
     }
@@ -112,6 +120,12 @@ object NetworkModule {
     @Singleton
     fun provideChatApiService(retrofit: Retrofit): ChatApiService {
         return retrofit.create(ChatApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChallengeApiService(retrofit: Retrofit): ChallengeApiService {
+        return retrofit.create(ChallengeApiService::class.java)
     }
 
     @Provides
@@ -150,4 +164,3 @@ object NetworkModule {
         return retrofit.create(com.sportynix.app.data.remote.api.SearchApiService::class.java)
     }
 }
-

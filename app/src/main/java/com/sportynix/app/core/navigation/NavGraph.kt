@@ -28,6 +28,7 @@ import com.sportynix.app.presentation.profile.PointsScreen
 import com.sportynix.app.presentation.profile.ProfileScreen
 import com.sportynix.app.presentation.profile.ReferralScreen
 import com.sportynix.app.presentation.profile.TeamScreen
+import com.sportynix.app.presentation.challenge.ChallengeScreen
 import com.sportynix.app.presentation.search.SearchScreen
 import com.sportynix.app.presentation.settings.AboutScreen
 import com.sportynix.app.presentation.settings.BlockedUsersScreen
@@ -196,6 +197,7 @@ fun NavGraph(
                 onNavigateToHelpSupport = { navController.navigate(Screen.HelpSupport.route) },
                 onNavigateToAbout = { navController.navigate(Screen.AboutUs.route) },
                 onNavigateToTeam = { navController.navigate(Screen.Team.route) },
+                onNavigateToChallenge = { navController.navigate(Screen.Challenge.route) },
                 onNavigateToSignIn = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
@@ -584,11 +586,58 @@ fun NavGraph(
         }
 
         composable(Screen.Team.route) {
-            TeamScreen(onNavigateBack = { navController.popBackStack() })
+            TeamScreen(onNavigateBack = { navController.popBackStack() }, onNavigateToChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) })
+        }
+        composable(Screen.Challenge.route) {
+            ChallengeScreen(onNavigateBack = { navController.popBackStack() }, onNavigateToChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) })
         }
 
         composable(Screen.TeamInvitations.route) {
-            TeamScreen(onNavigateBack = { navController.popBackStack() }, initialTab = 2)
+            TeamScreen(onNavigateBack = { navController.popBackStack() }, initialTab = 2, onNavigateToChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) })
+        }
+
+        composable(
+            route = Screen.TeamRegistration.route,
+            arguments = listOf(
+                navArgument("leagueId") { type = NavType.StringType },
+                navArgument("leagueName") { type = NavType.StringType },
+                navArgument("sportType") { type = NavType.StringType }
+            )
+        ) { entry ->
+            com.sportynix.app.presentation.profile.TeamRegistrationScreen(
+                leagueId = entry.arguments?.getString("leagueId").orEmpty(),
+                leagueName = entry.arguments?.getString("leagueName").orEmpty(),
+                sportType = entry.arguments?.getString("sportType").orEmpty(),
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.TeamLink.route,
+            arguments = listOf(
+                navArgument("tab") { type = NavType.IntType; defaultValue = 0 },
+                navArgument("teamId") { type = NavType.IntType; defaultValue = -1 },
+                navArgument("inviteToken") { type = NavType.StringType; nullable = true; defaultValue = null }
+            ),
+            deepLinks = listOf(navDeepLink { uriPattern = "sportynix://team/invite?token={inviteToken}" })
+        ) { entry ->
+            TeamScreen(
+                onNavigateBack = { navController.popBackStack() },
+                initialTab = entry.arguments?.getInt("tab") ?: 0,
+                teamId = entry.arguments?.getInt("teamId")?.takeIf { it > 0 },
+                inviteToken = entry.arguments?.getString("inviteToken"),
+                onNavigateToChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) }
+            )
+        }
+
+        composable(
+            route = Screen.Chat.route,
+            arguments = listOf(navArgument("receiverId") { type = NavType.StringType })
+        ) { entry ->
+            com.sportynix.app.presentation.profile.TeamChatScreen(
+                conversationId = entry.arguments?.getString("receiverId").orEmpty(),
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
 
         composable(Screen.Notification.route) {
@@ -611,7 +660,8 @@ fun NavGraph(
                     navController.navigate(Screen.SportDetail.createRoute(sportId, venueId))
                 },
                 onNavigateToTeamDetail = { teamId ->
-                    navController.navigate(Screen.Team.route)
+                    val id = teamId.removePrefix("team-").toIntOrNull()
+                    navController.navigate(Screen.TeamLink.createRoute(teamId = id))
                 },
                 onNavigateToEvents = { navController.navigate(Screen.LeagueList.route) },
                 onNavigateToHistory = { navController.navigate(Screen.BookingHistory.route) },
@@ -658,7 +708,10 @@ fun NavGraph(
             val leagueId = backStackEntry.arguments?.getString("leagueId") ?: ""
             com.sportynix.app.presentation.leagues.LeagueDetailScreen(
                 leagueId = leagueId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToTeamRegistration = { leagueName, sportType ->
+                    navController.navigate(Screen.TeamRegistration.createRoute(leagueId, leagueName, sportType))
+                }
             )
         }
 

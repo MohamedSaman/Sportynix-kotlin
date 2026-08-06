@@ -47,6 +47,9 @@ data class VenueUiState(
     val isFavorite: Boolean = false,
     val favoriteId: Int? = null,
     val isFavoriteLoading: Boolean = false,
+    val isSportFavorite: Boolean = false,
+    val sportFavoriteId: Int? = null,
+    val isSportFavoriteLoading: Boolean = false,
     val reviews: List<VenueReviewDto> = emptyList(),
     val venueEvents: List<VenueEventItem> = emptyList(),
     val eventsLoading: Boolean = false,
@@ -186,6 +189,30 @@ class VenueViewModel @Inject constructor(
                         state = state.copy(isFavorite = wasOn, isFavoriteLoading = false)
                     }
                 }
+            }
+        }
+    }
+
+    fun initSportFavorite(id: Int) {
+        if (id == 0) return
+        viewModelScope.launch {
+            when (val result = venueRepository.checkSportFavorite(id)) {
+                is ApiResult.Success -> state = state.copy(isSportFavorite = result.data != null, sportFavoriteId = result.data)
+                else -> Unit
+            }
+        }
+    }
+
+    fun toggleSportFavorite(id: Int) {
+        if (id == 0 || state.isSportFavoriteLoading) return
+        val wasOn = state.isSportFavorite
+        val oldId = state.sportFavoriteId
+        state = state.copy(isSportFavorite = !wasOn, isSportFavoriteLoading = true)
+        viewModelScope.launch {
+            val result = if (wasOn && oldId != null) venueRepository.removeFavorite(oldId) else venueRepository.addFavorite("sport", sportId = id)
+            when (result) {
+                is ApiResult.Success -> state = state.copy(isSportFavoriteLoading = false, sportFavoriteId = if (wasOn) null else (result.data as? FavoriteDto)?.id)
+                else -> state = state.copy(isSportFavorite = wasOn, isSportFavoriteLoading = false)
             }
         }
     }

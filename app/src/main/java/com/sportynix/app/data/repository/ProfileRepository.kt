@@ -288,7 +288,15 @@ class ProfileRepository @Inject constructor(
         return try {
             val response = apiService.getFavorites()
             if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!)
+                val root = response.body()!!
+                val elements = when {
+                    root.isJsonArray -> root.asJsonArray.toList()
+                    root.isJsonObject -> listOf("favorites", "results", "data", "items").firstNotNullOfOrNull { key ->
+                        root.asJsonObject.get(key)?.takeIf { it.isJsonArray }?.asJsonArray?.toList()
+                    }.orEmpty()
+                    else -> emptyList()
+                }
+                Result.success(elements.mapNotNull { element -> runCatching { gson.fromJson(element, APIFavoriteDto::class.java) }.getOrNull() })
             } else Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to fetch favorites")))
         } catch (e: Exception) {
             Result.failure(e)

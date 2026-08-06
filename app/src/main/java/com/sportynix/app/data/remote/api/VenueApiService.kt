@@ -102,7 +102,7 @@ interface VenueApiService {
 
     // ── Favorites APIs ──
     @GET("api/favorites/")
-    suspend fun getFavorites(): Response<List<FavoriteDto>>
+    suspend fun getFavorites(): Response<JsonElement>
 
     @POST("api/favorites/")
     suspend fun addFavorite(@Body body: Map<String, Any>): Response<FavoriteDto>
