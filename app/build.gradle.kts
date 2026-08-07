@@ -25,6 +25,7 @@ android {
         buildConfigField("String", "BASE_URL", "\"https://api.sportynix.com/\"")
         buildConfigField("String", "WS_BASE_URL", "\"wss://api.sportynix.com/\"")
         buildConfigField("String", "ONESIGNAL_APP_ID", "\"00000000-0000-0000-0000-000000000000\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"957336473509-dopudheo790qo6inggq5cukagkfpir3t.apps.googleusercontent.com\"")
     }
 
     buildTypes {
@@ -48,6 +49,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
     }
 
@@ -120,6 +130,9 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     // QR Code Generation
     implementation("com.google.zxing:core:3.5.3")

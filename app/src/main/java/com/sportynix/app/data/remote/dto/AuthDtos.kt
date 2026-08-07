@@ -45,7 +45,22 @@ data class ForgotPasswordRequestDto(
 
 data class ForgotPasswordResponseDto(
     @SerializedName("session_id") val sessionId: String?,
-    @SerializedName("message") val message: String?
+    @SerializedName("message") val message: String?,
+    @SerializedName("is_social_user") val isSocialUser: Boolean? = null,
+    @SerializedName("can_set_password") val canSetPassword: Boolean? = null
+)
+
+data class EmailOtpRequestDto(
+    @SerializedName("email") val email: String,
+    @SerializedName("code") val code: String
+)
+
+data class EmailRequestDto(@SerializedName("email") val email: String)
+
+data class GoogleAuthRequestDto(
+    @SerializedName("id_token") val idToken: String,
+    @SerializedName("date_of_birth") val dateOfBirth: String? = null,
+    @SerializedName("terms_accepted") val termsAccepted: Boolean? = null
 )
 
 data class VerifyPasswordResetOtpRequestDto(

@@ -16,6 +16,9 @@ import com.sportynix.app.data.remote.dto.UserDto
 import com.sportynix.app.data.remote.dto.UsernameCheckResponseDto
 import com.sportynix.app.data.remote.dto.VerifyOtpRequestDto
 import com.sportynix.app.data.remote.dto.VerifyPasswordResetOtpRequestDto
+import com.sportynix.app.data.remote.dto.EmailOtpRequestDto
+import com.sportynix.app.data.remote.dto.EmailRequestDto
+import com.sportynix.app.data.remote.dto.GoogleAuthRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -56,6 +59,18 @@ interface AuthApiService {
     @Headers("No-Auth: true")
     @POST("api/auth/reset-password/")
     suspend fun resetPassword(@Body request: ResetPasswordRequestDto): Response<Unit>
+
+    @Headers("No-Auth: true")
+    @POST("api/auth/verify-email-otp/")
+    suspend fun verifyEmailOtp(@Body request: EmailOtpRequestDto): Response<Unit>
+
+    @Headers("No-Auth: true")
+    @POST("api/auth/resend-otp/")
+    suspend fun resendEmailOtp(@Body request: EmailRequestDto): Response<Unit>
+
+    @Headers("No-Auth: true")
+    @POST("api/booking/auth/google/")
+    suspend fun googleAuth(@Body request: GoogleAuthRequestDto): Response<AuthResponseDto>
 
     @Headers("No-Auth: true")
     @POST("api/token/refresh/")

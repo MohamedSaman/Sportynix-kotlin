@@ -11,6 +11,6 @@ class LoginUseCase @Inject constructor(
     suspend operator fun invoke(email: String, pass: String): ApiResult<User> {
         if (email.isBlank()) return ApiResult.Error(message = "Please enter your email, phone, or username")
         if (pass.isBlank()) return ApiResult.Error(message = "Please enter your password")
-        return repository.login(email.trim(), pass)
+        return repository.login(email.trim().lowercase(), pass.trim())
     }
 }

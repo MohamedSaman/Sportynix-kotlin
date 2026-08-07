@@ -14,6 +14,7 @@ import com.sportynix.app.presentation.authentication.ResetPasswordScreen
 import com.sportynix.app.presentation.authentication.SignInScreen
 import com.sportynix.app.presentation.authentication.SignUpScreen
 import com.sportynix.app.presentation.authentication.WelcomeScreen
+import com.sportynix.app.presentation.authentication.EmailVerificationScreen
 import com.sportynix.app.data.remote.dto.BookingPayload
 import com.sportynix.app.presentation.booking.BookingDetailScreen
 import com.sportynix.app.presentation.booking.BookingHistoryScreen
@@ -74,6 +75,9 @@ fun NavGraph(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Welcome.route) { inclusive = true }
                     }
+                },
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) { popUpTo(Screen.Welcome.route) { inclusive = true } }
                 }
             )
         }
@@ -82,7 +86,7 @@ fun NavGraph(
             SignInScreen(
                 onNavigateToHome = {
                     navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
                     }
                 },
                 onNavigateToSignUp = { navController.navigate(Screen.Register.route) },
@@ -131,22 +135,24 @@ fun NavGraph(
         composable(Screen.ForgotPasswordEmail.route) {
             ForgotPasswordEmailScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToResetOtp = { sessionId, email ->
-                    navController.navigate(Screen.ForgotPasswordOtp.createRoute(email))
+                onNavigateToResetOtp = { _, email, social, canSet ->
+                    navController.navigate(Screen.ForgotPasswordOtp.createRoute(email, social, canSet))
                 }
             )
         }
 
         composable(
             route = Screen.ForgotPasswordOtp.route,
-            arguments = listOf(navArgument("email") { type = NavType.StringType; defaultValue = "" })
+            arguments = listOf(navArgument("email") { type = NavType.StringType; defaultValue = "" }, navArgument("social") { type = NavType.BoolType; defaultValue = false }, navArgument("canSet") { type = NavType.BoolType; defaultValue = false })
         ) { backStackEntry ->
             val email = backStackEntry.arguments?.getString("email") ?: ""
+            val social = backStackEntry.arguments?.getBoolean("social") ?: false
+            val canSet = backStackEntry.arguments?.getBoolean("canSet") ?: false
             ForgotPasswordOtpScreen(
                 email = email,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToReset = { resetEmail, otp ->
-                    navController.navigate(Screen.ResetPassword.createRoute(resetEmail, otp))
+                    navController.navigate(Screen.ResetPassword.createRoute(resetEmail, otp, social, canSet))
                 }
             )
         }
@@ -155,11 +161,15 @@ fun NavGraph(
             route = Screen.ResetPassword.route,
             arguments = listOf(
                 navArgument("email") { type = NavType.StringType; defaultValue = "" },
-                navArgument("otp") { type = NavType.StringType; defaultValue = "" }
+                navArgument("otp") { type = NavType.StringType; defaultValue = "" },
+                navArgument("social") { type = NavType.BoolType; defaultValue = false },
+                navArgument("canSet") { type = NavType.BoolType; defaultValue = false }
             )
         ) { backStackEntry ->
             val email = backStackEntry.arguments?.getString("email") ?: ""
             val otp = backStackEntry.arguments?.getString("otp") ?: ""
+            val social = backStackEntry.arguments?.getBoolean("social") ?: false
+            val canSet = backStackEntry.arguments?.getBoolean("canSet") ?: false
             ResetPasswordScreen(
                 email = email,
                 otpCode = otp,
@@ -168,7 +178,17 @@ fun NavGraph(
                         popUpTo(Screen.Welcome.route) { inclusive = true }
                     }
                 },
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                isSocialUser = social,
+                canSetPassword = canSet
+            )
+        }
+
+        composable(Screen.EmailVerification.route, arguments = listOf(navArgument("email") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            EmailVerificationScreen(
+                email = entry.arguments?.getString("email").orEmpty(),
+                onVerified = { navController.popBackStack() },
+                onBack = { navController.popBackStack() }
             )
         }
 

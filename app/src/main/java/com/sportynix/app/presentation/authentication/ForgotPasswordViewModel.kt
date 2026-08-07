@@ -23,11 +23,13 @@ data class ForgotPasswordUiState(
     val sessionId: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    val isSocialUser: Boolean = false,
+    val canSetPassword: Boolean = false
 )
 
 sealed class ForgotPasswordUiEffect {
-    data class NavigateToOtp(val sessionId: String, val email: String) : ForgotPasswordUiEffect()
+    data class NavigateToOtp(val sessionId: String, val email: String, val isSocialUser: Boolean = false, val canSetPassword: Boolean = false) : ForgotPasswordUiEffect()
     data class NavigateToReset(val sessionId: String, val email: String, val otpCode: String) : ForgotPasswordUiEffect()
     object NavigateToLogin : ForgotPasswordUiEffect()
 }
@@ -46,7 +48,7 @@ class ForgotPasswordViewModel @Inject constructor(
     val effect = _effect.asSharedFlow()
 
     fun onEmailChanged(email: String) { state = state.copy(emailInput = email, errorMessage = null) }
-    fun onOtpChanged(otp: String) { state = state.copy(otpInput = otp, errorMessage = null) }
+    fun onOtpChanged(otp: String) { state = state.copy(otpInput = otp.filter(Char::isDigit).take(6), errorMessage = null) }
     fun onNewPasswordChanged(pass: String) { state = state.copy(newPasswordInput = pass, errorMessage = null) }
     fun onConfirmPasswordChanged(pass: String) { state = state.copy(confirmPasswordInput = pass, errorMessage = null) }
 
@@ -56,18 +58,27 @@ class ForgotPasswordViewModel @Inject constructor(
             state = state.copy(isLoading = true, errorMessage = null)
             when (val result = forgotPasswordUseCase(state.emailInput)) {
                 is ApiResult.Success -> {
-                    state = state.copy(isLoading = false, sessionId = result.data)
-                    _effect.emit(ForgotPasswordUiEffect.NavigateToOtp(result.data, state.emailInput))
+                    state = state.copy(
+                        isLoading = false,
+                        sessionId = result.data.sessionId,
+                        isSocialUser = result.data.isSocialUser,
+                        canSetPassword = result.data.canSetPassword,
+                        successMessage = result.data.message
+                    )
+                    _effect.emit(ForgotPasswordUiEffect.NavigateToOtp(result.data.sessionId, state.emailInput.trim(), result.data.isSocialUser, result.data.canSetPassword))
                 }
                 is ApiResult.Error -> {
                     state = state.copy(isLoading = false, errorMessage = result.message)
                 }
+                is ApiResult.ServerError -> state = state.copy(isLoading = false, errorMessage = result.message)
                 else -> {
                     state = state.copy(isLoading = false, errorMessage = "Failed to send reset link. Please try again.")
                 }
             }
         }
     }
+
+    fun clearMessage() { state = state.copy(errorMessage = null, successMessage = null) }
 
     fun verifyResetOtp(email: String) {
         val code = state.otpInput.trim()
@@ -83,8 +94,8 @@ class ForgotPasswordViewModel @Inject constructor(
                     state = state.copy(isLoading = false)
                     _effect.emit(ForgotPasswordUiEffect.NavigateToReset(state.sessionId.orEmpty(), email.trim(), code))
                 }
-                is ApiResult.Error -> state = state.copy(isLoading = false, errorMessage = result.message)
-                is ApiResult.ServerError -> state = state.copy(isLoading = false, errorMessage = result.message)
+                is ApiResult.Error -> state = state.copy(isLoading = false, otpInput = "", errorMessage = result.message)
+                is ApiResult.ServerError -> state = state.copy(isLoading = false, otpInput = "", errorMessage = result.message)
                 else -> state = state.copy(isLoading = false, errorMessage = "Could not verify code")
             }
         }
@@ -101,6 +112,7 @@ class ForgotPasswordViewModel @Inject constructor(
                 is ApiResult.Error -> {
                     state = state.copy(isLoading = false, errorMessage = result.message)
                 }
+                is ApiResult.ServerError -> state = state.copy(isLoading = false, errorMessage = result.message)
                 else -> {
                     state = state.copy(isLoading = false, errorMessage = "Failed to reset password. Please check input.")
                 }

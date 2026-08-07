@@ -7,14 +7,17 @@ sealed class Screen(val route: String) {
     object Register : Screen("register")
     object OTPVerification : Screen("otp_verification/{sessionId}/{phone}/{email}") {
         fun createRoute(sessionId: String, phone: String, email: String) =
-            "otp_verification/$sessionId/$phone/$email"
+            "otp_verification/${android.net.Uri.encode(sessionId)}/${android.net.Uri.encode(phone)}/${android.net.Uri.encode(email)}"
+    }
+    object EmailVerification : Screen("email_verification?email={email}") {
+        fun createRoute(email: String) = "email_verification?email=${android.net.Uri.encode(email)}"
     }
     object ForgotPasswordEmail : Screen("forgot_password_email")
-    object ForgotPasswordOtp : Screen("forgot_password_otp?email={email}") {
-        fun createRoute(email: String) = "forgot_password_otp?email=${android.net.Uri.encode(email)}"
+    object ForgotPasswordOtp : Screen("forgot_password_otp?email={email}&social={social}&canSet={canSet}") {
+        fun createRoute(email: String, social: Boolean = false, canSet: Boolean = false) = "forgot_password_otp?email=${android.net.Uri.encode(email)}&social=$social&canSet=$canSet"
     }
-    object ResetPassword : Screen("reset_password?email={email}&otp={otp}") {
-        fun createRoute(email: String, otp: String) = "reset_password?email=${android.net.Uri.encode(email)}&otp=$otp"
+    object ResetPassword : Screen("reset_password?email={email}&otp={otp}&social={social}&canSet={canSet}") {
+        fun createRoute(email: String, otp: String, social: Boolean = false, canSet: Boolean = false) = "reset_password?email=${android.net.Uri.encode(email)}&otp=${android.net.Uri.encode(otp)}&social=$social&canSet=$canSet"
     }
     object Home : Screen("home")
     object VenueList : Screen("venue_list")

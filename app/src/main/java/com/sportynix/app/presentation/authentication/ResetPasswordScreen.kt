@@ -1,144 +1,29 @@
 package com.sportynix.app.presentation.authentication
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.sportynix.app.presentation.components.PrimaryButton
-import com.sportynix.app.presentation.components.SportynixTopBar
-import com.sportynix.app.presentation.theme.SportynixGreenPrimary
 import kotlinx.coroutines.flow.collectLatest
 
-@Composable
-fun ResetPasswordScreen(
-    email: String,
-    otpCode: String,
-    onNavigateToLogin: () -> Unit,
-    onNavigateBack: () -> Unit,
-    viewModel: ForgotPasswordViewModel = hiltViewModel()
-) {
-    val state = viewModel.state
-
-    LaunchedEffect(key1 = true) {
-        if (email.isNotEmpty()) {
-            viewModel.onEmailChanged(email)
+@Composable fun ResetPasswordScreen(email: String, otpCode: String, onNavigateToLogin: () -> Unit, onNavigateBack: () -> Unit, isSocialUser: Boolean = false, canSetPassword: Boolean = false, viewModel: ForgotPasswordViewModel = hiltViewModel()) {
+    val state = viewModel.state; var showNew by remember { mutableStateOf(false) }; var showConfirm by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { viewModel.onEmailChanged(email); viewModel.onOtpChanged(otpCode); viewModel.effect.collectLatest { if (it is ForgotPasswordUiEffect.NavigateToLogin) onNavigateToLogin() } }
+    AuthBackground { Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.fillMaxWidth()) { IconButton(onNavigateBack) { Icon(Icons.Default.ArrowBack, "Back") } }; AuthHeader("Create new password", "Choose a strong password you haven't used before.", Icons.Default.LockReset)
+        Spacer(Modifier.height(22.dp)); AuthCard(Modifier.fillMaxWidth()) {
+            if (isSocialUser || canSetPassword) { Surface(color = MaterialTheme.colorScheme.primary.copy(alpha = .1f), shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) { Text("Setting a password lets you sign in using email and password as well as Google.", Modifier.padding(12.dp), color = MaterialTheme.colorScheme.primary) }; Spacer(Modifier.height(14.dp)) }
+            AuthTextField(state.newPasswordInput, viewModel::onNewPasswordChanged, "New password", Icons.Default.Lock, visualTransformation = if (showNew) VisualTransformation.None else PasswordVisualTransformation(), trailing = { IconButton({ showNew = !showNew }) { Icon(Icons.Default.Visibility, "Toggle") } }); Spacer(Modifier.height(8.dp)); PasswordChecklist(state.newPasswordInput); Spacer(Modifier.height(14.dp))
+            AuthTextField(state.confirmPasswordInput, viewModel::onConfirmPasswordChanged, "Confirm password", Icons.Default.Lock, visualTransformation = if (showConfirm) VisualTransformation.None else PasswordVisualTransformation(), trailing = { IconButton({ showConfirm = !showConfirm }) { Icon(Icons.Default.Visibility, "Toggle") } }); Spacer(Modifier.height(12.dp)); AuthMessage(state.errorMessage); Spacer(Modifier.height(16.dp)); PremiumButton("Reset Password", viewModel::submitResetPassword, loading = state.isLoading)
         }
-        if (otpCode.isNotEmpty()) viewModel.onOtpChanged(otpCode)
-        viewModel.effect.collectLatest { effect ->
-            when (effect) {
-                is ForgotPasswordUiEffect.NavigateToLogin -> onNavigateToLogin()
-                else -> {}
-            }
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            SportynixTopBar(
-                title = "Create New Password",
-                onBackClick = onNavigateBack
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Set New Password",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = SportynixGreenPrimary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Password must contain uppercase, lowercase, number & min 8 characters.",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    OutlinedTextField(
-                        value = state.newPasswordInput,
-                        onValueChange = viewModel::onNewPasswordChanged,
-                        label = { Text("New Password") },
-                        leadingIcon = { Icon(imageVector = Icons.Default.Lock, contentDescription = "Lock", tint = SportynixGreenPrimary) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = state.confirmPasswordInput,
-                        onValueChange = viewModel::onConfirmPasswordChanged,
-                        label = { Text("Confirm New Password") },
-                        leadingIcon = { Icon(imageVector = Icons.Default.Lock, contentDescription = "Lock", tint = SportynixGreenPrimary) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    AnimatedVisibility(visible = state.errorMessage != null) {
-                        state.errorMessage?.let { msg ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = msg,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    PrimaryButton(
-                        text = "Reset Password & Log In",
-                        onClick = viewModel::submitResetPassword,
-                        isLoading = state.isLoading
-                    )
-                }
-            }
-        }
-    }
+    } }
 }
