@@ -3,16 +3,20 @@ package com.sportynix.app.presentation.authentication
 import android.app.DatePickerDialog
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -66,9 +69,9 @@ fun SignUpScreen(
 
     // Date Picker Config
     val calendar = Calendar.getInstance()
-    calendar.set(2000, 0, 1) // default to 2000-01-01
+    calendar.set(2000, 0, 1)
     val maxDateCalendar = Calendar.getInstance()
-    maxDateCalendar.add(Calendar.YEAR, -13) // user must be at least 13 years old
+    maxDateCalendar.add(Calendar.YEAR, -13)
 
     val datePickerDialog = DatePickerDialog(
         context,
@@ -86,55 +89,22 @@ fun SignUpScreen(
     AuthBackground {
         Column(
             Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .widthIn(max = 600.dp)
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(10.dp))
 
-            // Header Section with Back Arrow
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        if (state.currentStep == 1) {
-                            onNavigateToSignIn()
-                        } else {
-                            viewModel.setStep(1)
-                        }
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = if (dark) Color.White else Color.Black
-                    )
-                }
+            // Logo with concentric glow rings
+            ConcentricGlowIcon(logoRes = if (dark) R.drawable.sportynix_logo_dark else R.drawable.sportynix_logo_light)
 
-                Spacer(Modifier.weight(1f))
-
-                // Step indicators matching iOS step badge
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StepBadge(title = "Info", isActive = state.currentStep == 1, isDone = state.currentStep > 1)
-                    StepBadge(title = "Auth", isActive = state.currentStep == 2, isDone = false)
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // Logo
-            Image(
-                painter = painterResource(if (dark) R.drawable.sportynix_logo_dark else R.drawable.sportynix_logo_light),
-                contentDescription = "Sportynix Logo",
-                modifier = Modifier.size(56.dp)
-            )
-
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(6.dp))
 
             Text(
                 text = "Create Account",
@@ -148,195 +118,306 @@ fun SignUpScreen(
             Spacer(Modifier.height(4.dp))
 
             Text(
-                text = if (state.currentStep == 1) "Step 1: Your Information" else "Step 2: Authentication",
+                text = "Join Sportynix and start booking",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                fontSize = 15.sp
             )
+
+            Spacer(Modifier.height(20.dp))
+
+            // Step Progress Indicator
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 30.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                StepNumberBadge(number = "1", label = "Basics", isActive = state.currentStep >= 1)
+
+                HorizontalDivider(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp),
+                    thickness = 2.dp,
+                    color = if (state.currentStep > 1) SportynixGreenPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+
+                StepNumberBadge(number = "2", label = "Setup", isActive = state.currentStep == 2)
+            }
 
             Spacer(Modifier.height(24.dp))
 
-            // Card Form
             AuthCard(Modifier.fillMaxWidth()) {
-                if (state.currentStep == 1) {
-                    // First Name
-                    Text("FIRST NAME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(state.firstNameInput, viewModel::onFirstNameChanged, "First Name", Icons.Default.Person)
-                    Spacer(Modifier.height(14.dp))
-
-                    // Last Name
-                    Text("LAST NAME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(state.lastNameInput, viewModel::onLastNameChanged, "Last Name", Icons.Default.Person)
-                    Spacer(Modifier.height(14.dp))
-
-                    // Email
-                    Text("EMAIL ADDRESS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(state.emailInput, viewModel::onEmailChanged, "your@email.com", Icons.Default.Email, keyboardType = KeyboardType.Email)
-                    Spacer(Modifier.height(14.dp))
-
-                    // Phone
-                    Text("MOBILE NUMBER", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(state.phoneInput, viewModel::onPhoneChanged, "+15551234567", Icons.Default.Phone, keyboardType = KeyboardType.Phone)
-                    Spacer(Modifier.height(14.dp))
-
-                    // DOB
-                    Text("DATE OF BIRTH", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        IconButton(
-                            onClick = { datePickerDialog.show() },
-                            modifier = Modifier.fillMaxWidth().height(64.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .border(1.dp, SportynixGreenPrimary.copy(alpha = 0.32f), RoundedCornerShape(18.dp))
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.CalendarMonth, null, tint = SportynixGreenPrimary)
-                                Spacer(Modifier.width(16.dp))
-                                Text(
-                                    text = state.dobInput.ifBlank { "Select Date of Birth" },
-                                    color = if (state.dobInput.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp
-                                )
-                                Spacer(Modifier.weight(1f))
-                                Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
+            AnimatedContent(
+                targetState = state.currentStep,
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(150)) },
+                label = "registrationStep"
+            ) { currentStep ->
+            if (currentStep == 1) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                // First Name & Last Name Side-by-Side
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        PremiumAuthField(
+                            value = state.firstNameInput,
+                            onValueChange = viewModel::onFirstNameChanged,
+                            placeholder = "First Name",
+                            icon = Icons.Default.Person
+                        )
                     }
-
-                    Spacer(Modifier.height(16.dp))
-                    AuthMessage(state.errorMessage)
-                    Spacer(Modifier.height(10.dp))
-
-                    val canProceed = state.firstNameInput.isNotBlank() &&
-                            state.lastNameInput.isNotBlank() &&
-                            state.emailInput.isNotBlank() &&
-                            state.phoneInput.isNotBlank() &&
-                            state.dobInput.isNotBlank()
-
-                    PremiumButton(
-                        text = "Next",
-                        onClick = viewModel::continueSignup,
-                        enabled = canProceed
-                    )
-                } else {
-                    // Username
-                    Text("USERNAME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(state.usernameInput, viewModel::onUsernameChanged, "your_username", Icons.Default.AlternateEmail)
-                    if (state.isCheckingUsername) {
-                        LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp))
-                    } else if (state.usernameAvailable == true) {
-                        Text("Username is available", color = SportynixGreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 4.dp))
-                    } else if (state.usernameAvailable == false) {
-                        Text("Username is taken or invalid", color = MaterialTheme.colorScheme.error, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 4.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        PremiumAuthField(
+                            value = state.lastNameInput,
+                            onValueChange = viewModel::onLastNameChanged,
+                            placeholder = "Last Name",
+                            icon = Icons.Default.Person
+                        )
                     }
-                    Spacer(Modifier.height(14.dp))
+                }
 
-                    // Password
-                    Text("PASSWORD", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(
-                        value = state.passwordInput,
-                        onValueChange = viewModel::onPasswordChanged,
-                        placeholder = "Min 8 characters",
-                        icon = Icons.Default.Lock,
-                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailing = {
-                            IconButton({ showPassword = !showPassword }) {
-                                Icon(Icons.Default.Visibility, "Toggle password")
-                            }
-                        }
+                Spacer(Modifier.height(14.dp))
+
+                // Email
+                PremiumAuthField(
+                    value = state.emailInput,
+                    onValueChange = viewModel::onEmailChanged,
+                    placeholder = "Email",
+                    icon = Icons.Default.Email,
+                    keyboardType = KeyboardType.Email
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                // Phone
+                PremiumAuthField(
+                    value = state.phoneInput,
+                    onValueChange = viewModel::onPhoneChanged,
+                    placeholder = "Phone Number",
+                    icon = Icons.Default.Phone,
+                    keyboardType = KeyboardType.Phone
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                // Date of Birth Dropdown
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { datePickerDialog.show() },
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (dark) Color(0xFF181A1E) else Color(0xFFF3F7F5),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        SportynixGreenPrimary.copy(alpha = 0.22f)
                     )
-                    Spacer(Modifier.height(8.dp))
-                    PasswordChecklist(state.passwordInput)
-                    Spacer(Modifier.height(14.dp))
-
-                    // Confirm Password
-                    Text("CONFIRM PASSWORD", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(
-                        value = state.confirmPasswordInput,
-                        onValueChange = viewModel::onConfirmPasswordChanged,
-                        placeholder = "Repeat password",
-                        icon = Icons.Default.Lock,
-                        visualTransformation = if (showConfirmPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailing = {
-                            IconButton({ showConfirmPassword = !showConfirmPassword }) {
-                                Icon(Icons.Default.Visibility, "Toggle confirm password")
-                            }
-                        }
-                    )
-                    Spacer(Modifier.height(14.dp))
-
-                    // Referral
-                    Text("REFERRAL CODE (OPTIONAL)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PremiumAuthField(state.referralCodeInput, { viewModel.onReferralChanged(it.uppercase()) }, "Referral Code", Icons.Default.Redeem)
-                    Spacer(Modifier.height(14.dp))
-
-                    // Terms Checklist
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(
-                            checked = state.agreeToTerms,
-                            onCheckedChange = viewModel::onTermsToggled,
-                            colors = CheckboxDefaults.colors(checkedColor = SportynixGreenPrimary)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .padding(vertical = 6.dp)
+                                .aspectRatio(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = SportynixGreenPrimary.copy(alpha = 0.12f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.CalendarMonth, null, tint = SportynixGreenPrimary, modifier = Modifier.size(20.dp))
+                            }
+                        }
+
+                        Spacer(Modifier.width(14.dp))
+
+                        Text(
+                            text = state.dobInput.ifBlank { "Date of Birth" },
+                            color = if (state.dobInput.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f) else (if (dark) Color.White else Color.Black),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f)
                         )
-                        Column {
-                            Text("I agree to the ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row {
-                                TextButton(
-                                    onClick = { openUrl("https://sportynix.com/terms") },
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Text("Terms", color = SportynixGreenPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                }
-                                Text(" and ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                TextButton(
-                                    onClick = { openUrl("https://sportynix.com/privacy") },
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Text("Privacy Policy", color = SportynixGreenPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                }
+
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier
+                                .padding(end = 10.dp)
+                                .size(22.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                AuthMessage(state.errorMessage)
+                Spacer(Modifier.height(10.dp))
+
+                val canProceed = state.firstNameInput.isNotBlank() &&
+                        state.lastNameInput.isNotBlank() &&
+                        state.emailInput.isNotBlank() &&
+                        state.phoneInput.isNotBlank() &&
+                        state.dobInput.isNotBlank()
+
+                PremiumButton(
+                    text = "Next",
+                    onClick = viewModel::continueSignup,
+                    enabled = canProceed
+                )
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                // Step 2 Setup
+                Text("USERNAME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(4.dp))
+                PremiumAuthField(state.usernameInput, viewModel::onUsernameChanged, "Username", Icons.Default.AlternateEmail)
+                if (state.isCheckingUsername) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp))
+                } else if (state.usernameAvailable == true) {
+                    Text("Username is available", color = SportynixGreenPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                } else if (state.usernameAvailable == false) {
+                    Text("Username is taken or invalid", color = MaterialTheme.colorScheme.error, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                }
+                Spacer(Modifier.height(14.dp))
+
+                Text("PASSWORD", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(4.dp))
+                PremiumAuthField(
+                    value = state.passwordInput,
+                    onValueChange = viewModel::onPasswordChanged,
+                    placeholder = "Password",
+                    icon = Icons.Default.Lock,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailing = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle password visibility",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                )
+                Spacer(Modifier.height(12.dp))
+                PasswordRequirementCard(password = state.passwordInput, confirmPassword = state.confirmPasswordInput)
+                Spacer(Modifier.height(14.dp))
+
+                Text("CONFIRM PASSWORD", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(4.dp))
+                PremiumAuthField(
+                    value = state.confirmPasswordInput,
+                    onValueChange = viewModel::onConfirmPasswordChanged,
+                    placeholder = "Confirm Password",
+                    icon = Icons.Default.Lock,
+                    visualTransformation = if (showConfirmPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailing = {
+                        IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
+                            Icon(
+                                imageVector = if (showConfirmPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle confirm password visibility",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                )
+                Spacer(Modifier.height(14.dp))
+
+                Text("REFERRAL CODE (OPTIONAL)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(4.dp))
+                PremiumAuthField(state.referralCodeInput, { viewModel.onReferralChanged(it.uppercase()) }, "Referral Code", Icons.Default.Redeem)
+                Spacer(Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = state.agreeToTerms,
+                        onCheckedChange = viewModel::onTermsToggled,
+                        colors = CheckboxDefaults.colors(checkedColor = SportynixGreenPrimary)
+                    )
+                    Column {
+                        Text("I agree to the ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row {
+                            TextButton(
+                                onClick = { openUrl("https://sportynix.com/terms") },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("Terms", color = SportynixGreenPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            }
+                            Text(" and ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextButton(
+                                onClick = { openUrl("https://sportynix.com/privacy") },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("Privacy Policy", color = SportynixGreenPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             }
                         }
                     }
-
-                    Spacer(Modifier.height(12.dp))
-                    AuthMessage(state.errorMessage)
-                    Spacer(Modifier.height(12.dp))
-
-                    val canSubmit = state.usernameInput.isNotBlank() &&
-                            state.passwordInput.length >= 8 &&
-                            state.passwordInput == state.confirmPasswordInput &&
-                            state.agreeToTerms
-
-                    PremiumButton(
-                        text = "Create Account",
-                        onClick = viewModel::signUp,
-                        enabled = canSubmit,
-                        loading = state.isLoading
-                    )
                 }
+
+                Spacer(Modifier.height(12.dp))
+                AuthMessage(state.errorMessage)
+                Spacer(Modifier.height(12.dp))
+
+                val canSubmit = state.usernameInput.isNotBlank() &&
+                        state.passwordInput.length >= 8 &&
+                        state.passwordInput == state.confirmPasswordInput &&
+                        state.agreeToTerms
+
+                PremiumButton(
+                    text = "Create Account",
+                    onClick = viewModel::signUp,
+                    enabled = canSubmit,
+                    loading = state.isLoading
+                )
+                }
+            }
             }
 
             // Divider
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                HorizontalDivider(Modifier.weight(1f).padding(horizontal = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                Text("OR", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                HorizontalDivider(Modifier.weight(1f).padding(horizontal = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(
+                    Modifier.weight(1f).padding(horizontal = 14.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+                Text(
+                    text = "or",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                HorizontalDivider(
+                    Modifier.weight(1f).padding(horizontal = 14.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
             }
 
-            // Google sign-in option
+            // Google Sign In (Only Google, no Apple)
             GoogleAuthButton(
                 onClick = { viewModel.googleSignIn(context) },
                 loading = state.isSocialLoading
             )
+            }
 
             Spacer(Modifier.height(24.dp))
 
@@ -350,7 +431,7 @@ fun SignUpScreen(
                     onClick = onNavigateToSignIn,
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("Sign In", color = SportynixGreenPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Sign in", color = SportynixGreenPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 
@@ -361,46 +442,15 @@ fun SignUpScreen(
     if (state.showGoogleDobDialog) AlertDialog(
         onDismissRequest = viewModel::dismissGoogleCompletion,
         title = { Text("Date of birth required") },
-        text = { AuthTextField(googleDob, { googleDob = it }, "YYYY-MM-DD", Icons.Default.CalendarMonth, error = state.errorMessage) },
-        confirmButton = { TextButton({ viewModel.completeGoogleDob(googleDob) }) { Text("Continue") } },
-        dismissButton = { TextButton(viewModel::dismissGoogleCompletion) { Text("Cancel") } }
+        text = { PremiumAuthField(value = googleDob, onValueChange = { googleDob = it }, placeholder = "YYYY-MM-DD", icon = Icons.Default.CalendarMonth) },
+        confirmButton = { TextButton(onClick = { viewModel.completeGoogleDob(googleDob) }) { Text("Continue", color = SportynixGreenPrimary) } },
+        dismissButton = { TextButton(onClick = viewModel::dismissGoogleCompletion) { Text("Cancel") } }
     )
     if (state.showGoogleTermsDialog) AlertDialog(
         onDismissRequest = viewModel::dismissGoogleCompletion,
         title = { Text("Terms & Conditions") },
         text = { Text("Accept the Terms & Conditions to complete Google registration.") },
-        confirmButton = { TextButton(viewModel::acceptGoogleTerms) { Text("Accept") } },
-        dismissButton = { TextButton(viewModel::dismissGoogleCompletion) { Text("Cancel") } }
+        confirmButton = { TextButton(onClick = viewModel::acceptGoogleTerms) { Text("Accept", color = SportynixGreenPrimary) } },
+        dismissButton = { TextButton(onClick = viewModel::dismissGoogleCompletion) { Text("Cancel") } }
     )
 }
-
-@Composable
-fun StepBadge(title: String, isActive: Boolean, isDone: Boolean) {
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(if (isActive) SportynixGreenPrimary.copy(alpha = 0.15f) else Color.Transparent)
-            .border(
-                1.dp,
-                if (isActive) SportynixGreenPrimary else MaterialTheme.colorScheme.outlineVariant,
-                CircleShape
-            )
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = if (isDone) Icons.Default.CheckCircle else Icons.Default.Circle,
-            contentDescription = null,
-            modifier = Modifier.size(10.dp),
-            tint = if (isDone || isActive) SportynixGreenPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-

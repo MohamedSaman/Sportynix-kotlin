@@ -62,14 +62,29 @@ interface UserApiService {
     @POST("api/auth/email/change-request/")
     suspend fun requestEmailChange(@Body request: EmailChangeRequestDto): Response<JsonElement>
 
+    @POST("api/auth/email/send-change-otp/")
+    suspend fun sendEmailChangeOtp(): Response<JsonElement>
+
+    @POST("api/auth/email/verify-change/")
+    suspend fun verifyCurrentEmailForChange(@Body body: Map<String, String>): Response<JsonElement>
+
     @POST("api/auth/email/verify-new/")
     suspend fun verifyNewEmail(@Body request: EmailVerifyNewRequestDto): Response<JsonElement>
 
     @POST("api/auth/password/change/")
     suspend fun changePassword(@Body request: PasswordChangeRequestDto): Response<JsonElement>
 
+    @POST("api/auth/password/change/")
+    suspend fun changePasswordRaw(@Body body: Map<String, String>): Response<JsonElement>
+
+    @POST("api/auth/password/set/")
+    suspend fun setPassword(@Body body: Map<String, String>): Response<JsonElement>
+
     @POST("api/auth/delete-account/")
-    suspend fun deleteAccount(): Response<JsonElement>
+    suspend fun deleteAccount(@Body body: Map<String, @JvmSuppressWildcards Any?>): Response<JsonElement>
+
+    @POST("api/support/bug-report/")
+    suspend fun submitBugReport(@Body body: Map<String, String>): Response<JsonElement>
 
     @GET("api/favorites/")
     suspend fun getFavorites(): Response<JsonElement>

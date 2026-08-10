@@ -264,25 +264,53 @@ class ProfileRepository @Inject constructor(
 
     suspend fun changePassword(current: String, new: String, confirm: String): Result<Unit> {
         return try {
-            val response = apiService.changePassword(PasswordChangeRequestDto(current, new, confirm))
+            val response = apiService.changePasswordRaw(mapOf("old_password" to current, "new_password" to new, "confirm_password" to confirm))
             if (response.isSuccessful) Result.success(Unit)
-            else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to change password"))
+            else Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to change password")))
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun deleteAccount(): Result<Unit> {
+    suspend fun sendEmailChangeOtp(): Result<Unit> = apiUnit("Failed to send OTP") { apiService.sendEmailChangeOtp() }
+
+    suspend fun verifyCurrentEmailForChange(otp: String, newEmail: String): Result<Unit> =
+        apiUnit("Failed to verify current email") {
+            apiService.verifyCurrentEmailForChange(mapOf("otp_code" to otp, "new_email" to newEmail))
+        }
+
+    suspend fun setPassword(new: String, confirm: String): Result<Unit> =
+        apiUnit("Failed to set password") {
+            apiService.setPassword(mapOf("new_password" to new, "confirm_password" to confirm))
+        }
+
+    suspend fun submitBugReport(subject: String, comment: String): Result<String> {
         return try {
-            val response = apiService.deleteAccount()
+            val response = apiService.submitBugReport(mapOf("subject" to subject.trim(), "comment" to comment.trim()))
+            if (response.isSuccessful) {
+                val body = response.body()?.takeIf { it.isJsonObject }?.asJsonObject
+                Result.success(body?.get("message")?.asString ?: body?.get("ticket_id")?.asString?.let { "Submitted — ticket #$it." } ?: "Bug report submitted successfully.")
+            } else Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to submit bug report")))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun deleteAccount(body: Map<String, Any?> = emptyMap()): Result<Unit> {
+        return try {
+            val response = apiService.deleteAccount(body)
             if (response.isSuccessful) {
                 _currentUser.value = null
                 Result.success(Unit)
-            } else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to delete account"))
+            } else Result.failure(Exception(parseBackendError(response.errorBody()?.string(), "Failed to delete account")))
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
+
+    private suspend fun apiUnit(fallback: String, call: suspend () -> retrofit2.Response<JsonElement>): Result<Unit> = try {
+        val response = call()
+        if (response.isSuccessful) Result.success(Unit)
+        else Result.failure(Exception(parseBackendError(response.errorBody()?.string(), fallback)))
+    } catch (e: Exception) { Result.failure(e) }
 
     suspend fun getFavorites(): Result<List<APIFavoriteDto>> {
         return try {

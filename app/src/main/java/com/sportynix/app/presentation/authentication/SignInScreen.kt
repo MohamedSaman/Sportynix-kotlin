@@ -1,30 +1,29 @@
 package com.sportynix.app.presentation.authentication
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sportynix.app.R
 import com.sportynix.app.presentation.theme.LocalThemeController
 import com.sportynix.app.presentation.theme.SportynixGreenPrimary
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.Color
-import android.widget.Toast
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
@@ -47,118 +46,116 @@ fun SignInScreen(
     AuthBackground {
         Column(
             Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(10.dp))
 
-            // Logo
-            Image(
-                painter = painterResource(if (dark) R.drawable.sportynix_logo_dark else R.drawable.sportynix_logo_light),
-                contentDescription = "Sportynix Logo",
-                modifier = Modifier.size(68.dp)
-            )
+            // Logo with concentric glow rings
+            ConcentricGlowIcon(logoRes = if (dark) R.drawable.sportynix_logo_dark else R.drawable.sportynix_logo_light)
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
 
-            Text(
-                text = "Welcome back",
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp
-                ),
-                color = if (dark) Color.White else Color.Black
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Welcome to ",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 28.sp
+                    ),
+                    color = if (dark) Color.White else Color(0xFF101B2C)
+                )
+                Text(
+                    text = "Sportynix",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 28.sp
+                    ),
+                    color = SportynixGreenPrimary
+                )
+            }
 
             Spacer(Modifier.height(6.dp))
 
             Text(
-                text = "Sign in to continue your sports journey",
+                text = "Sign in to continue your journey",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                fontSize = 15.sp
             )
 
             Spacer(Modifier.height(28.dp))
 
-            // Card
             AuthCard(Modifier.fillMaxWidth()) {
-                Text(
-                    text = "EMAIL / USERNAME",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
 
-                PremiumAuthField(
-                    value = state.emailInput,
-                    onValueChange = viewModel::onEmailChanged,
-                    placeholder = "Username or email",
-                    icon = Icons.Default.Person
-                )
+            // Username or Email Field
+            PremiumAuthField(
+                value = state.emailInput,
+                onValueChange = viewModel::onEmailChanged,
+                placeholder = "Username or Email",
+                icon = Icons.Default.Email
+            )
 
-                Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
-                Text(
-                    text = "PASSWORD",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-
-                PremiumAuthField(
-                    value = state.passwordInput,
-                    onValueChange = viewModel::onPasswordChanged,
-                    placeholder = "Password",
-                    icon = Icons.Default.Lock,
-                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailing = {
-                        IconButton({ showPassword = !showPassword }) {
-                            Icon(
-                                imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = "Toggle password visibility",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                // Forgot Password Link
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(
-                        onClick = onNavigateToForgotPassword,
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text(
-                            text = "Forgot password?",
-                            color = SportynixGreenPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+            // Password Field
+            PremiumAuthField(
+                value = state.passwordInput,
+                onValueChange = viewModel::onPasswordChanged,
+                placeholder = "Password",
+                icon = Icons.Default.Lock,
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                trailing = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "Toggle password visibility",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
                 }
+            )
 
-                // Error Message banner
-                AuthMessage(state.errorMessage)
+            Spacer(Modifier.height(10.dp))
 
-                Spacer(Modifier.height(14.dp))
-
-                // Sign In Button
-                val canLogin = state.emailInput.isNotBlank() && state.passwordInput.isNotBlank()
-                PremiumButton(
-                    text = "Sign In",
-                    onClick = viewModel::login,
-                    enabled = canLogin,
-                    loading = state.isLoading
-                )
+            // Forgot Password Link
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(
+                    onClick = onNavigateToForgotPassword,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(
+                        text = "Forgot Password?",
+                        color = SportynixGreenPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
+
+            // Error Message banner
+            AuthMessage(state.errorMessage)
+
+            Spacer(Modifier.height(14.dp))
+
+            // Sign In Button
+            val canLogin = state.emailInput.isNotBlank() && state.passwordInput.isNotBlank()
+            PremiumButton(
+                text = "Sign In",
+                onClick = viewModel::login,
+                enabled = canLogin,
+                loading = state.isLoading
+            )
 
             // Divider
             Row(
@@ -172,37 +169,28 @@ fun SignInScreen(
                     Modifier
                         .weight(1f)
                         .padding(horizontal = 14.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                 )
                 Text(
-                    text = "OR",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 1.sp
+                    text = "or",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
                 HorizontalDivider(
                     Modifier
                         .weight(1f)
                         .padding(horizontal = 14.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                 )
             }
 
-            // Social Buttons
+            // Google Sign In (Only Google, no Apple)
             GoogleAuthButton(
                 onClick = { viewModel.googleSignIn(context) },
                 loading = state.isSocialLoading
             )
-
-            Spacer(Modifier.height(10.dp))
-
-            AppleAuthButton(
-                onClick = {
-                    Toast.makeText(context, "Apple Sign-In is not supported on Android. Please use Google Sign-In or Email.", Toast.LENGTH_LONG).show()
-                },
-                loading = false
-            )
+            }
 
             Spacer(Modifier.height(24.dp))
 
@@ -212,7 +200,7 @@ fun SignInScreen(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "New to Sportynix? ",
+                    text = "Don't have an account? ",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 )
@@ -221,7 +209,7 @@ fun SignInScreen(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = "Create account",
+                        text = "Sign up",
                         color = SportynixGreenPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -235,23 +223,23 @@ fun SignInScreen(
 
     if (state.showGoogleDobDialog) AlertDialog(
         onDismissRequest = viewModel::dismissGoogleCompletion,
-        icon = { Icon(Icons.Default.Cake, null) },
+        icon = { Icon(Icons.Default.CalendarMonth, null, tint = SportynixGreenPrimary) },
         title = { Text("Date of birth required") },
         text = {
             Column {
                 Text("Choose your date of birth to finish Google Sign-In. You must be at least 13 years old.")
                 Spacer(Modifier.height(12.dp))
-                AuthTextField(googleDob, { googleDob = it }, "YYYY-MM-DD", Icons.Default.CalendarMonth, error = state.errorMessage)
+                PremiumAuthField(value = googleDob, onValueChange = { googleDob = it }, placeholder = "YYYY-MM-DD", icon = Icons.Default.CalendarMonth)
             }
         },
-        confirmButton = { TextButton({ viewModel.completeGoogleDob(googleDob) }) { Text("Continue") } },
-        dismissButton = { TextButton(viewModel::dismissGoogleCompletion) { Text("Cancel") } }
+        confirmButton = { TextButton(onClick = { viewModel.completeGoogleDob(googleDob) }) { Text("Continue", color = SportynixGreenPrimary) } },
+        dismissButton = { TextButton(onClick = viewModel::dismissGoogleCompletion) { Text("Cancel") } }
     )
     if (state.showGoogleTermsDialog) AlertDialog(
         onDismissRequest = viewModel::dismissGoogleCompletion,
         title = { Text("Terms & Conditions") },
         text = { Text("Accept the Terms & Conditions to finish setting up your Google account.") },
-        confirmButton = { TextButton(viewModel::acceptGoogleTerms) { Text("Accept & continue") } },
-        dismissButton = { TextButton(viewModel::dismissGoogleCompletion) { Text("Cancel") } }
+        confirmButton = { TextButton(onClick = viewModel::acceptGoogleTerms) { Text("Accept & continue", color = SportynixGreenPrimary) } },
+        dismissButton = { TextButton(onClick = viewModel::dismissGoogleCompletion) { Text("Cancel") } }
     )
 }
