@@ -60,10 +60,19 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object EditProfile : Screen("edit_profile")
     object Notification : Screen("notification")
-    object Chat : Screen("chat/{receiverId}") {
-        fun createRoute(receiverId: String) = "chat/$receiverId"
+    object Chat : Screen("chat/{chatId}?scrollToMessageId={scrollToMessageId}") {
+        fun createRoute(chatId: String, scrollToMessageId: Long? = null): String {
+            return if (scrollToMessageId != null) "chat/$chatId?scrollToMessageId=$scrollToMessageId" else "chat/$chatId"
+        }
     }
     object MessagesList : Screen("messages_list")
+    object NewChat : Screen("new_chat")
+    object ChatInfo : Screen("chat_info/{chatId}") {
+        fun createRoute(chatId: String) = "chat_info/$chatId"
+    }
+    object MediaGallery : Screen("media_gallery/{chatId}") {
+        fun createRoute(chatId: String) = "media_gallery/$chatId"
+    }
     object Settings : Screen("settings")
     object Search : Screen("search")
     object Favorites : Screen("favorites")

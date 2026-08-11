@@ -53,4 +53,10 @@ abstract class RepositoryModule {
     abstract fun bindSearchRepository(
         impl: com.sportynix.app.data.repository.SearchRepositoryImpl
     ): com.sportynix.app.domain.repository.SearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindChatRepository(
+        impl: com.sportynix.app.data.repository.ChatRepositoryImpl
+    ): com.sportynix.app.domain.repository.ChatRepository
 }

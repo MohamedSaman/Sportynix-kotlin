@@ -2,7 +2,6 @@ package com.sportynix.app.presentation.navigation
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +21,7 @@ fun MainTabScreen(
     onNavigateToBookingDetail: (Int) -> Unit,
     onNavigateToNewBooking: () -> Unit,
     onNavigateToNotification: () -> Unit,
+    onNavigateToMessages: () -> Unit,
     onNavigateToLeagues: () -> Unit,
     onNavigateToTournaments: () -> Unit,
     onNavigateToLiveCricket: (String) -> Unit,
@@ -89,6 +89,7 @@ fun MainTabScreen(
                             viewModel.selectTab(TabItem.PROFILE)
                         },
                         onNavigateToNotification = onNavigateToNotification,
+                        onNavigateToMessages = onNavigateToMessages,
                         onNavigateToBookingHistory = {
                             viewModel.selectTab(TabItem.BOOKING)
                         },

@@ -204,6 +204,11 @@ fun NavGraph(
                     navController.navigate(Screen.Booking.createRoute("1", "1"))
                 },
                 onNavigateToNotification = { navController.navigate(Screen.Notification.route) },
+                onNavigateToMessages = {
+                    navController.navigate(Screen.MessagesList.route) {
+                        launchSingleTop = true
+                    }
+                },
                 onNavigateToLeagues = { navController.navigate(Screen.LeagueList.route) },
                 onNavigateToTournaments = { navController.navigate(Screen.TournamentList.route) },
                 onNavigateToLiveCricket = { matchId -> navController.navigate(Screen.LiveCricketScoring.createRoute(matchId)) },
@@ -650,16 +655,6 @@ fun NavGraph(
             )
         }
 
-        composable(
-            route = Screen.Chat.route,
-            arguments = listOf(navArgument("receiverId") { type = NavType.StringType })
-        ) { entry ->
-            com.sportynix.app.presentation.profile.TeamChatScreen(
-                conversationId = entry.arguments?.getString("receiverId").orEmpty(),
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
         composable(Screen.Notification.route) {
             NotificationScreen(
                 onNavigateBack = { navController.popBackStack() },
@@ -774,6 +769,89 @@ fun NavGraph(
             com.sportynix.app.presentation.auction.AuctionScreen(
                 auctionId = auctionId,
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.MessagesList.route) {
+            com.sportynix.app.presentation.messages.MessagesListScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToChat = { chatId ->
+                    navController.navigate(Screen.Chat.createRoute(chatId.toString()))
+                },
+                onNavigateToNewChat = {
+                    navController.navigate(Screen.NewChat.route)
+                }
+            )
+        }
+
+        composable(Screen.NewChat.route) {
+            com.sportynix.app.presentation.messages.NewChatScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToChat = { chatId ->
+                    navController.navigate(Screen.Chat.createRoute(chatId.toString())) {
+                        popUpTo(Screen.NewChat.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = Screen.Chat.route,
+            arguments = listOf(
+                navArgument("chatId") { type = NavType.StringType },
+                navArgument("scrollToMessageId") { type = NavType.LongType; defaultValue = -1L }
+            )
+        ) { backStackEntry ->
+            val chatIdStr = backStackEntry.arguments?.getString("chatId") ?: "0"
+            val chatId = chatIdStr.toLongOrNull() ?: 0L
+            val scrollToMessageId = backStackEntry.arguments?.getLong("scrollToMessageId").takeIf { it != -1L }
+            com.sportynix.app.presentation.messages.ChatScreen(
+                chatId = chatId,
+                scrollToMessageId = scrollToMessageId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToInfo = { cId ->
+                    navController.navigate(Screen.ChatInfo.createRoute(cId.toString()))
+                },
+                onNavigateToGallery = { cId ->
+                    navController.navigate(Screen.MediaGallery.createRoute(cId.toString()))
+                },
+                onNavigateToBookingDetail = { bookingId ->
+                    navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString()))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.ChatInfo.route,
+            arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val chatIdStr = backStackEntry.arguments?.getString("chatId") ?: "0"
+            val chatId = chatIdStr.toLongOrNull() ?: 0L
+            com.sportynix.app.presentation.messages.ChatInfoScreen(
+                chatId = chatId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToGallery = { cId ->
+                    navController.navigate(Screen.MediaGallery.createRoute(cId.toString()))
+                },
+                onNavigateToChat = { cId -> navController.navigate(Screen.Chat.createRoute(cId.toString())) },
+                onNavigateToBookingDetail = { bookingId -> navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString())) }
+            )
+        }
+
+        composable(
+            route = Screen.MediaGallery.route,
+            arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val chatIdStr = backStackEntry.arguments?.getString("chatId") ?: "0"
+            val chatId = chatIdStr.toLongOrNull() ?: 0L
+            com.sportynix.app.presentation.messages.MediaGalleryScreen(
+                chatId = chatId,
+                onNavigateBack = { navController.popBackStack() },
+                onSeeInChat = { messageId ->
+                    navController.navigate(Screen.Chat.createRoute(chatId.toString(), messageId)) {
+                        popUpTo(Screen.Chat.createRoute(chatId.toString())) { inclusive = true }
+                    }
+                }
             )
         }
     }

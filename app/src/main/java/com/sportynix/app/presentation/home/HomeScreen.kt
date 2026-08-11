@@ -12,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -46,7 +45,6 @@ import com.sportynix.app.domain.model.Announcement
 import com.sportynix.app.domain.model.LiveMatchSnapshot
 import com.sportynix.app.domain.model.Venue
 import com.sportynix.app.presentation.components.CustomGlassHeader
-import com.sportynix.app.presentation.components.GlassBottomNavigation
 import com.sportynix.app.presentation.components.GlassCard
 import com.sportynix.app.presentation.components.ShimmerSkeleton
 import com.sportynix.app.presentation.components.VenueCard
@@ -59,6 +57,7 @@ fun HomeScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToNotification: () -> Unit,
+    onNavigateToMessages: () -> Unit,
     onNavigateToBookingHistory: () -> Unit = {},
     onNavigateToLeagues: () -> Unit = {},
     onNavigateToTournaments: () -> Unit = {},
@@ -70,7 +69,6 @@ fun HomeScreen(
     val state = viewModel.state
     val isDark = com.sportynix.app.presentation.theme.LocalThemeController.current.isDark
     val context = LocalContext.current
-    var selectedBottomNav by remember { mutableStateOf("home") }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -131,7 +129,7 @@ fun HomeScreen(
             CustomGlassHeader(
                 locationText = if (state.userLocation != null) "Nearby You" else "Finding location...",
                 onNotificationsPress = onNavigateToNotification,
-                onMessagesPress = { },
+                onMessagesPress = onNavigateToMessages,
                 unreadNotificationsCount = state.unreadNotificationsCount,
                 unreadMessagesCount = state.unreadMessagesCount
             )

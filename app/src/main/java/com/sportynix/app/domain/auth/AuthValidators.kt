@@ -6,7 +6,7 @@ import java.time.Period
 object AuthValidators {
     private val emailRegex = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     private val usernameRegex = Regex("^[a-z0-9_-]{4,30}$")
-    private val phoneRegex = Regex("^\\+?[0-9]{8,20}$")
+    private val phoneRegex = Regex("^[0-9]{10}$")
     private val nameRegex = Regex("^[a-zA-Z\\s]+$")
     private val referralRegex = Regex("^[A-Z0-9]{3,20}$")
 
@@ -25,7 +25,7 @@ object AuthValidators {
 
     fun phone(value: String): String? = when {
         value.isBlank() -> "Phone number is required"
-        !phoneRegex.matches(value.trim()) -> "Please enter a valid phone number"
+        !phoneRegex.matches(value.trim()) -> "Phone number must contain exactly 10 digits"
         else -> null
     }
 

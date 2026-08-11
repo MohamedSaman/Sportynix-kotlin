@@ -35,4 +35,20 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideBookingDao(db: SportynixDatabase): BookingDao = db.bookingDao()
+
+    @Provides
+    @Singleton
+    fun provideChatDatabase(@ApplicationContext context: Context): com.sportynix.app.data.local.ChatDatabase {
+        return Room.databaseBuilder(
+            context,
+            com.sportynix.app.data.local.ChatDatabase::class.java,
+            "sportynix_chat_db"
+        )
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatDao(db: com.sportynix.app.data.local.ChatDatabase): com.sportynix.app.data.local.dao.ChatDao = db.chatDao()
 }
