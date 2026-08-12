@@ -34,8 +34,8 @@ sealed class Screen(val route: String) {
     object VenueSlotPicker : Screen("venue_slot_picker/{venueId}") {
         fun createRoute(venueId: String) = "booking/$venueId/1"
     }
-    object Booking : Screen("booking/{venueId}/{sportId}") {
-        fun createRoute(venueId: String, sportId: String) = "booking/$venueId/$sportId"
+    object Booking : Screen("booking/{venueId}/{sportId}?chatId={chatId}") {
+        fun createRoute(venueId: String, sportId: String, chatId: Long? = null) = "booking/$venueId/$sportId" + (chatId?.let { "?chatId=$it" } ?: "")
     }
     object BookingSummary : Screen("booking_summary/{venueId}/{sportId}/{date}/{slotIds}/{bookingType}?selectedDays={selectedDays}") {
         fun createRoute(venueId: String, sportId: String, date: String, slotIds: String, bookingType: String = "Normal", selectedDays: String = "") =

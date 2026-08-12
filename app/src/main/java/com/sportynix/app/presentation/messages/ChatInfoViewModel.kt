@@ -47,19 +47,17 @@ class ChatInfoViewModel @Inject constructor(
 
     fun loadInfo() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            chatRepository.getChatDetails(chatId).onSuccess { chat ->
-                _uiState.update { it.copy(chat = chat) }
+            if (_uiState.value.isLoading) return@launch
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val details = chatRepository.getChatDetails(chatId)
+            if (details.isFailure) {
+                _uiState.update { it.copy(isLoading = false, errorMessage = details.exceptionOrNull()?.message ?: "Failed to load chat info") }
+                return@launch
             }
-            chatRepository.getChatMembers(chatId).onSuccess { members ->
-                _uiState.update { it.copy(members = members) }
-            }
-            chatRepository.getPhotoMessages(chatId, 6).onSuccess { photos ->
-                _uiState.update { it.copy(photosPreview = photos) }
-            }
-            chatRepository.getEventMessages(chatId, 6).onSuccess { events ->
-                _uiState.update { it.copy(eventsPreview = events, isLoading = false) }
-            }
+            val members = chatRepository.getChatMembers(chatId).getOrDefault(emptyList())
+            val photos = chatRepository.getPhotoMessages(chatId, 6).getOrDefault(emptyList())
+            val events = chatRepository.getEventMessages(chatId, 6).getOrDefault(emptyList())
+            _uiState.update { it.copy(chat = details.getOrNull(), members = members, photosPreview = photos, eventsPreview = events, isLoading = false) }
         }
     }
 
@@ -129,9 +127,11 @@ class ChatInfoViewModel @Inject constructor(
             _uiState.update { it.copy(isActionBusy = true) }
             chatRepository.reportUser(reportedUserId, reason, notes, chatId).onSuccess {
                 _uiState.update { it.copy(showReportModal = false, isActionBusy = false) }
-            }
+            }.onFailure { error -> _uiState.update { it.copy(isActionBusy = false, errorMessage = error.message ?: "Unable to submit report") } }
         }
     }
+
+    fun dismissError() = _uiState.update { it.copy(errorMessage = null) }
 
     fun clearChatForMe(onComplete: () -> Unit) {
         viewModelScope.launch {

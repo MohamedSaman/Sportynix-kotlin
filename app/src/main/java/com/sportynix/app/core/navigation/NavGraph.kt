@@ -319,11 +319,13 @@ fun NavGraph(
             route = Screen.Booking.route,
             arguments = listOf(
                 navArgument("venueId") { type = NavType.StringType },
-                navArgument("sportId") { type = NavType.StringType }
+                navArgument("sportId") { type = NavType.StringType },
+                navArgument("chatId") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStackEntry ->
             val venueId = backStackEntry.arguments?.getString("venueId") ?: ""
             val sportId = backStackEntry.arguments?.getString("sportId") ?: ""
+            val bookingChatId = backStackEntry.arguments?.getString("chatId")?.toLongOrNull()
             com.sportynix.app.presentation.booking.BookingScreen(
                 venueId = venueId.toIntOrNull() ?: 1,
                 sportId = sportId.toIntOrNull() ?: 1,
@@ -334,6 +336,7 @@ fun NavGraph(
                 complexLocation = "Location",
                 complexRating = 4.5,
                 complexReviews = 10,
+                chatId = bookingChatId,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSummary = { payload ->
                     com.sportynix.app.presentation.booking.BookingFlowState.payload = payload
@@ -791,7 +794,8 @@ fun NavGraph(
                     navController.navigate(Screen.Chat.createRoute(chatId.toString())) {
                         popUpTo(Screen.NewChat.route) { inclusive = true }
                     }
-                }
+                },
+                onNavigateToNewTeam = { navController.navigate(Screen.Team.route) }
             )
         }
 
@@ -835,6 +839,7 @@ fun NavGraph(
                 },
                 onNavigateToChat = { cId -> navController.navigate(Screen.Chat.createRoute(cId.toString())) },
                 onNavigateToBookingDetail = { bookingId -> navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString())) }
+                ,onBookMatch = { venueId, sportId, sourceChatId -> navController.navigate(Screen.Booking.createRoute(venueId.toString(), sportId.toString(), sourceChatId)) }
             )
         }
 
@@ -851,7 +856,8 @@ fun NavGraph(
                     navController.navigate(Screen.Chat.createRoute(chatId.toString(), messageId)) {
                         popUpTo(Screen.Chat.createRoute(chatId.toString())) { inclusive = true }
                     }
-                }
+                },
+                onNavigateToBookingDetail = { bookingId -> navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString())) }
             )
         }
     }

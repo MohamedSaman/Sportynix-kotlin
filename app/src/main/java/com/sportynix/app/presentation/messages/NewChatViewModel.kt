@@ -12,11 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import javax.inject.Inject
 
 data class NewChatUiState(
     val query: String = "",
     val mutualUsers: List<MutualUser> = emptyList(),
+    val recentUsers: List<MutualUser> = emptyList(),
     val searchResults: List<UserSearchResult> = emptyList(),
     val chatRequestsReceived: List<ChatRequestItem> = emptyList(),
     val chatRequestsSent: List<ChatRequestItem> = emptyList(),
@@ -42,16 +44,27 @@ class NewChatViewModel @Inject constructor(
 
     fun loadInitialData() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isInitialLoading = true) }
-            val mutualRes = chatRepository.getMutualUsers()
-            val reqsRes = chatRepository.getChatRequests()
+            if (_uiState.value.isInitialLoading && _uiState.value.mutualUsers.isNotEmpty()) return@launch
+            _uiState.update { it.copy(isInitialLoading = true, errorMessage = null) }
+            val mutualTask = async { chatRepository.getMutualUsers() }
+            val chatsTask = async { chatRepository.fetchMyChats() }
+            val requestsTask = async { chatRepository.getChatRequests() }
+            val mutualRes = mutualTask.await()
+            val chatsRes = chatsTask.await()
+            val reqsRes = requestsTask.await()
+            val recent = chatsRes.getOrDefault(emptyList()).filter { it.chatType in setOf("direct", "rivalry", "challenge") && it.otherUserId != null }.mapNotNull { chat ->
+                val id = chat.otherUserId ?: return@mapNotNull null
+                MutualUser(id, "", chat.otherUserName ?: chat.displayName ?: "User", chat.otherUserAvatar)
+            }.distinctBy { it.id }
 
             _uiState.update {
                 it.copy(
                     mutualUsers = mutualRes.getOrDefault(emptyList()),
+                    recentUsers = recent,
                     chatRequestsReceived = reqsRes.getOrNull()?.received ?: emptyList(),
                     chatRequestsSent = reqsRes.getOrNull()?.sent ?: emptyList(),
-                    isInitialLoading = false
+                    isInitialLoading = false,
+                    errorMessage = listOf(mutualRes, chatsRes, reqsRes).firstOrNull { it.isFailure }?.exceptionOrNull()?.message
                 )
             }
         }
@@ -69,12 +82,15 @@ class NewChatViewModel @Inject constructor(
         }
 
         searchJob = viewModelScope.launch {
-            delay(300) // 300ms debounce
+            delay(400)
+            if (_uiState.value.query.trim() != trimmed) return@launch
+            if (trimmed.length < 2) { _uiState.update { it.copy(searchResults = emptyList(), isLoading = false) }; return@launch }
             _uiState.update { it.copy(isLoading = true) }
 
             val searchRes = chatRepository.searchUsers(trimmed)
             val mutualRes = chatRepository.getMutualUsers(trimmed)
 
+            if (_uiState.value.query.trim() != trimmed) return@launch
             _uiState.update {
                 it.copy(
                     searchResults = searchRes.getOrDefault(emptyList()),
@@ -135,4 +151,10 @@ class NewChatViewModel @Inject constructor(
             }
         }
     }
+
+    fun cancelSentRequestFor(userId: Long) {
+        _uiState.value.chatRequestsSent.firstOrNull { it.toUser.id == userId && it.status == "pending" }?.let(::cancelChatRequest)
+    }
+
+    fun dismissError() = _uiState.update { it.copy(errorMessage = null) }
 }

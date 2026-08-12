@@ -6,14 +6,19 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,14 +26,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.paint
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -38,9 +52,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sportynix.app.domain.model.ChatMessage
+import com.sportynix.app.R
 import com.sportynix.app.presentation.messages.components.*
 import java.io.File
 import java.io.FileOutputStream
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -57,10 +73,15 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showAttachmentSheet by remember { mutableStateOf(false) }
     var pendingImagePaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingCaption by remember { mutableStateOf("") }
     var showCaptionDialog by remember { mutableStateOf(false) }
+    var showEmojiPicker by rememberSaveable { mutableStateOf(false) }
+    var highlightedMessageId by remember { mutableStateOf<Long?>(null) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+    val isDark = isSystemInDarkTheme()
 
     fun stageImages(paths: List<String>) {
         if (paths.isNotEmpty()) {
@@ -95,6 +116,16 @@ fun ChatScreen(
         if (index >= 0) listState.animateScrollToItem(index)
     }
 
+    suspend fun jumpToMessage(messageId: Long) {
+        val index = uiState.messages.indexOfFirst { it.id == messageId }
+        if (index >= 0) {
+            listState.animateScrollToItem(index)
+            highlightedMessageId = messageId
+            kotlinx.coroutines.delay(2400)
+            if (highlightedMessageId == messageId) highlightedMessageId = null
+        }
+    }
+
     Scaffold(
         topBar = {
             val title = uiState.chatDetails?.displayName ?: uiState.chatDetails?.otherUserName ?: uiState.chatDetails?.name ?: "Chat"
@@ -102,7 +133,7 @@ fun ChatScreen(
 
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onNavigateToInfo(chatId) }) {
                         if (!avatar.isNullOrEmpty()) {
                             AsyncImage(
                                 model = avatar,
@@ -141,11 +172,12 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onNavigateToGallery(chatId) }) {
-                        Icon(Icons.Default.PermMedia, contentDescription = "Gallery", tint = LiquidGlassTheme.PrimaryGreen)
-                    }
-                    IconButton(onClick = { onNavigateToInfo(chatId) }) {
-                        Icon(Icons.Default.Info, contentDescription = "Chat Info", tint = LiquidGlassTheme.PrimaryGreen)
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) { Icon(Icons.Default.MoreVert, "More", tint = LiquidGlassTheme.PrimaryGreen) }
+                        DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                            DropdownMenuItem(text = { Text("Chat info") }, leadingIcon = { Icon(Icons.Default.Info, null) }, onClick = { showMoreMenu = false; onNavigateToInfo(chatId) })
+                            DropdownMenuItem(text = { Text("Media gallery") }, leadingIcon = { Icon(Icons.Default.PermMedia, null) }, onClick = { showMoreMenu = false; onNavigateToGallery(chatId) })
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -168,6 +200,10 @@ fun ChatScreen(
                         modifier = Modifier.padding(14.dp)
                     )
                 }
+            } else if (uiState.chatDetails?.canPost == false) {
+                Surface(color = LiquidGlassTheme.cardBackground(), modifier = Modifier.fillMaxWidth().padding(12.dp), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, LiquidGlassTheme.cardBorder())) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) { Icon(Icons.Default.Lock, null, tint = LiquidGlassTheme.PrimaryGreen); Spacer(Modifier.width(8.dp)); Text("Only admins can send messages", fontWeight = FontWeight.SemiBold) }
+                }
             } else {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     // Reply Banner Preview
@@ -175,7 +211,7 @@ fun ChatScreen(
                         val reply = uiState.replyingToMessage!!
                         Surface(
                             color = LiquidGlassTheme.cardBackground(),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
                             shape = RoundedCornerShape(12.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, LiquidGlassTheme.PrimaryGreen.copy(alpha = 0.3f))
                         ) {
@@ -200,8 +236,8 @@ fun ChatScreen(
                     if (uiState.isRecordingVoice) {
                         Surface(
                             color = LiquidGlassTheme.cardBackground(),
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(0.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red.copy(alpha = 0.3f))
                         ) {
                             Row(
@@ -210,37 +246,30 @@ fun ChatScreen(
                             ) {
                                 PulsingRecordingDot()
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Recording... ${uiState.voiceDurationSeconds}s", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Recording…", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 Spacer(modifier = Modifier.weight(1f))
-                                TextButton(onClick = { viewModel.cancelVoiceRecording() }) {
-                                    Text("Cancel", color = Color.Red)
-                                }
-                                Button(
+                                Text("%d:%02d".format(uiState.voiceDurationSeconds / 60, uiState.voiceDurationSeconds % 60), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                IconButton(onClick = { viewModel.cancelVoiceRecording() }) { Icon(Icons.Default.Delete, "Cancel recording", tint = Color.Red) }
+                                IconButton(
                                     onClick = { viewModel.stopAndSendVoiceRecording() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = LiquidGlassTheme.PrimaryGreen)
+                                    modifier = Modifier.size(52.dp).clip(CircleShape).background(LiquidGlassTheme.PrimaryGreen)
                                 ) {
-                                    Text("Send")
+                                    Icon(Icons.Default.Send, "Send voice", tint = Color.White)
                                 }
                             }
                         }
                     } else {
                         // Floating Translucent Glass Composer
-                        Surface(
-                            color = LiquidGlassTheme.cardBackground(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            shape = RoundedCornerShape(28.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, LiquidGlassTheme.cardBorder()),
-                            shadowElevation = 4.dp
-                        ) {
+                        Column {
+                        AnimatedVisibility(showEmojiPicker, enter = expandVertically(), exit = shrinkVertically()) { EmojiPanel(onEmoji = { viewModel.onTextChanged(uiState.textInput + it) }) }
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { showAttachmentSheet = true }) { Icon(Icons.Default.Add, "Attach", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp)) }
+                        Surface(color = LiquidGlassTheme.cardBackground(), modifier = Modifier.weight(1f), shape = RoundedCornerShape(26.dp), border = androidx.compose.foundation.BorderStroke(1.dp, LiquidGlassTheme.cardBorder()), shadowElevation = 3.dp) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = { showAttachmentSheet = true }) {
-                                    Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = LiquidGlassTheme.PrimaryGreen)
-                                }
+                                IconButton(onClick = { showEmojiPicker = !showEmojiPicker }) { Icon(if (showEmojiPicker) Icons.Default.Keyboard else Icons.Default.EmojiEmotions, "Emoji", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
 
                                 TextField(
                                     value = uiState.textInput,
@@ -252,25 +281,14 @@ fun ChatScreen(
                                         focusedIndicatorColor = Color.Transparent,
                                         unfocusedIndicatorColor = Color.Transparent
                                     ),
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f), maxLines = 5
                                 )
-
-                                if (uiState.textInput.trim().isEmpty()) {
-                                    IconButton(onClick = { microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) {
-                                        Icon(Icons.Default.Mic, contentDescription = "Voice Record", tint = LiquidGlassTheme.PrimaryGreen)
-                                    }
-                                } else {
-                                    IconButton(
-                                        onClick = { viewModel.sendTextMessage() },
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(LiquidGlassTheme.PrimaryGreen)
-                                    ) {
-                                        Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(20.dp))
-                                    }
-                                }
+                                IconButton(onClick = { showAttachmentSheet = false; cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }) { Icon(Icons.Default.PhotoCamera, "Camera", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                             }
+                        }
+                            Spacer(Modifier.width(7.dp))
+                            IconButton(onClick = { if (uiState.textInput.isBlank()) microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) else viewModel.sendTextMessage() }, modifier = Modifier.size(52.dp).clip(CircleShape).background(LiquidGlassTheme.PrimaryGreen)) { Icon(if (uiState.textInput.isBlank()) Icons.Default.Mic else Icons.Default.Send, if (uiState.textInput.isBlank()) "Record voice" else "Send", tint = Color.White) }
+                        }
                         }
                     }
                 }
@@ -283,7 +301,9 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
+                .paint(painterResource(if (isDark) R.drawable.chat_bg_dark else R.drawable.chat_bg_light), contentScale = ContentScale.Crop)
+                .padding(horizontal = 10.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val pinned = uiState.messages.firstOrNull { it.isPinned && !it.isDeleted }
@@ -316,7 +336,9 @@ fun ChatScreen(
                     onLongClick = { viewModel.setSelectedMessageForMenu(message) },
                     onSwipeToReply = { viewModel.setReplyingTo(message) },
                     onPhotoClick = { onNavigateToGallery(chatId) },
-                    onEventClick = { message.bookingId?.let(onNavigateToBookingDetail) }
+                    onEventClick = { message.bookingId?.let(onNavigateToBookingDetail) },
+                    highlighted = highlightedMessageId == message.id,
+                    onReplyClick = { id -> scope.launch { jumpToMessage(id) } }
                 )
             }
             if (uiState.typingUserName != null) {
@@ -409,40 +431,24 @@ fun ChatScreen(
         }
 
         if (showCaptionDialog) {
-            AlertDialog(
+            Dialog(
                 onDismissRequest = { showCaptionDialog = false },
-                title = { Text(if (pendingImagePaths.size == 1) "Send photo" else "Send ${pendingImagePaths.size} photos") },
-                text = {
-                    Column {
+            ) {
+                Surface(Modifier.fillMaxSize(), color = Color.Black, shape = RoundedCornerShape(0.dp)) {
+                    Column(Modifier.fillMaxSize().padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { showCaptionDialog = false }) { Icon(Icons.Default.Close, "Cancel", tint = Color.White) }; Text(if (pendingImagePaths.size == 1) "Send photo" else "${pendingImagePaths.size} photos", color = Color.White, fontWeight = FontWeight.Bold) }
                         AsyncImage(
                             model = pendingImagePaths.firstOrNull(),
                             contentDescription = "Selected photo preview",
-                            modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(18.dp)),
-                            contentScale = ContentScale.Crop
+                            modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp)),
+                            contentScale = ContentScale.Fit
                         )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 10.dp)) { items(pendingImagePaths) { path -> Box { AsyncImage(path, null, Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop); IconButton(onClick = { pendingImagePaths = pendingImagePaths - path }, modifier = Modifier.align(Alignment.TopEnd).size(24.dp).background(Color.Black.copy(alpha=.6f), CircleShape)) { Icon(Icons.Default.Close, "Remove", tint = Color.White, modifier = Modifier.size(14.dp)) } } } }
                         Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = pendingCaption,
-                            onValueChange = { pendingCaption = it },
-                            label = { Text("Add a caption") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            maxLines = 4
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(pendingCaption, { pendingCaption = it }, placeholder = { Text("Add a caption") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(24.dp), maxLines = 4); Spacer(Modifier.width(8.dp)); IconButton(enabled = pendingImagePaths.isNotEmpty() && !uiState.isSendingMedia, onClick = { viewModel.sendImagePaths(pendingImagePaths, pendingCaption); showCaptionDialog = false }, modifier = Modifier.size(52.dp).background(LiquidGlassTheme.PrimaryGreen, CircleShape)) { Icon(Icons.Default.Send, "Send photos", tint = Color.White) } }
                     }
-                },
-                confirmButton = {
-                    Button(
-                        enabled = !uiState.isSendingMedia,
-                        onClick = {
-                            viewModel.sendImagePaths(pendingImagePaths, pendingCaption)
-                            showCaptionDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = LiquidGlassTheme.PrimaryGreen)
-                    ) { Text("Send") }
-                },
-                dismissButton = { TextButton(onClick = { showCaptionDialog = false }) { Text("Cancel") } }
-            )
+                }
+            }
         }
     }
 }
@@ -455,12 +461,18 @@ fun MessageBubble(
     onLongClick: () -> Unit,
     onSwipeToReply: () -> Unit,
     onPhotoClick: () -> Unit,
-    onEventClick: () -> Unit
+    onEventClick: () -> Unit,
+    highlighted: Boolean,
+    onReplyClick: (Long) -> Unit
 ) {
     val isMe = message.sender == currentUserId || message.senderName == "You"
     val align = if (isMe) Alignment.End else Alignment.Start
     val bg = if (isMe) LiquidGlassTheme.PrimaryGreen else LiquidGlassTheme.cardBackground()
     val textColor = if (isMe) Color.White else MaterialTheme.colorScheme.onSurface
+    var dragOffset by remember(message.id) { mutableFloatStateOf(0f) }
+    val animatedOffset by animateFloatAsState(dragOffset, spring(stiffness = Spring.StiffnessMediumLow), label = "replySwipe")
+    val haptic = LocalHapticFeedback.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
 
     Column(
         modifier = Modifier
@@ -469,15 +481,18 @@ fun MessageBubble(
                 var dragTotal = 0f
                 detectHorizontalDragGestures(
                     onDragStart = { dragTotal = 0f },
-                    onHorizontalDrag = { change, amount -> change.consume(); dragTotal += amount },
-                    onDragEnd = { if (dragTotal > 72.dp.toPx()) onSwipeToReply() }
+                    onHorizontalDrag = { change, amount -> change.consume(); dragTotal += amount; dragOffset = dragTotal.coerceIn(0f, 76.dp.toPx()) },
+                    onDragEnd = { if (dragTotal > 56.dp.toPx()) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSwipeToReply() }; dragOffset = 0f },
+                    onDragCancel = { dragOffset = 0f }
                 )
             }
             .combinedClickable(onClick = {}, onLongClick = onLongClick),
         horizontalAlignment = align
     ) {
+        Box(contentAlignment = if (isMe) Alignment.CenterEnd else Alignment.CenterStart) {
+            if (animatedOffset > 12f) Icon(Icons.Default.Reply, null, tint = LiquidGlassTheme.PrimaryGreen.copy(alpha = (animatedOffset / 100f).coerceIn(.25f, 1f)), modifier = Modifier.size(24.dp))
         Surface(
-            color = bg,
+            color = if (highlighted) LiquidGlassTheme.PrimaryGreen.copy(alpha = .45f) else bg,
             shape = RoundedCornerShape(
                 topStart = 18.dp,
                 topEnd = 18.dp,
@@ -486,7 +501,7 @@ fun MessageBubble(
             ),
             border = if (!isMe) androidx.compose.foundation.BorderStroke(1.dp, LiquidGlassTheme.cardBorder()) else null,
             shadowElevation = 2.dp,
-            modifier = Modifier.widthIn(max = 280.dp)
+            modifier = Modifier.widthIn(max = 300.dp).offset(x = with(density) { animatedOffset.toDp() })
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 if (!isMe && message.senderName.isNotEmpty()) {
@@ -502,6 +517,7 @@ fun MessageBubble(
                 val reply = message.metadata?.get("reply_to") as? Map<*, *>
                 if (reply != null && !message.isDeleted) {
                     Surface(
+                        onClick = { (reply["id"] as? Number)?.toLong()?.let(onReplyClick) },
                         color = if (isMe) Color.Black.copy(alpha = .12f) else LiquidGlassTheme.PrimaryGreen.copy(alpha = .08f),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().padding(bottom = 7.dp)
@@ -513,7 +529,9 @@ fun MessageBubble(
                     }
                 }
 
-                when (message.messageType) {
+                if (message.isDeleted) {
+                    Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Block, null, modifier = Modifier.size(16.dp), tint = textColor.copy(alpha=.7f)); Spacer(Modifier.width(6.dp)); Text("This message was deleted", color = textColor.copy(alpha=.72f), fontStyle = androidx.compose.ui.text.font.FontStyle.Italic) }
+                } else when (message.messageType) {
                     "photo" -> {
                         if (!message.fileUrl.isNullOrEmpty() || !message.localMediaPath.isNullOrEmpty()) {
                             AsyncImage(
@@ -539,7 +557,7 @@ fun MessageBubble(
                     else -> {}
                 }
 
-                if (message.message.isNotEmpty()) {
+                if (!message.isDeleted && message.message.isNotEmpty()) {
                     Text(
                         text = message.message,
                         color = textColor,
@@ -570,6 +588,24 @@ fun MessageBubble(
                     }
                 }
             }
+        }
+        }
+    }
+}
+
+@Composable
+private fun EmojiPanel(onEmoji: (String) -> Unit) {
+    val categories = remember { listOf(
+        "😀" to listOf("😀","😃","😄","😁","😆","😅","😂","🙂","😊","😇","🥰","😍","🤩","😘","😗","😚","😋","😜","🤪","🤔","🤫","🤭","🫢","🫡","😐","😑","😶","🙄","😏","😣","😥","😮","🤐","😯","😪","😫","🥱","😴","🤤","😛","😒","😓","😔","🤑","😲","☹️","🙁"),
+        "👋" to listOf("👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","🤝","🙏"),
+        "⚽" to listOf("⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🪀","🏓","🏸","🏒","🏑","🥍","🏏","🪃","🥅","⛳","🏹","🎣","🤿","🥊","🥋","🎽","🛹","🛼","🛷","⛸️"),
+        "🔥" to listOf("🔥","❤️","💚","💙","💜","🖤","🤍","🤎","💔","❣️","💕","💞","💓","💗","💖","💘","💝","✨","⭐","🌟","💫","⚡","💥","🎉","🎊","✅","❌","💯","🏆","🥇")
+    ) }
+    var selected by rememberSaveable { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxWidth().heightIn(max = 300.dp).background(Color.Black.copy(alpha = .92f))) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) { categories.forEachIndexed { index, pair -> TextButton(onClick = { selected = index }, modifier = Modifier.weight(1f), colors = ButtonDefaults.textButtonColors(containerColor = if(selected == index) LiquidGlassTheme.PrimaryGreen.copy(alpha=.25f) else Color.Transparent)) { Text(pair.first, fontSize = 24.sp) } } }
+        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(8), contentPadding = PaddingValues(8.dp), modifier = Modifier.fillMaxWidth()) {
+            gridItems(categories[selected].second) { emoji -> Box(Modifier.aspectRatio(1f).clickable { onEmoji(emoji) }, contentAlignment = Alignment.Center) { Text(emoji, fontSize = 25.sp) } }
         }
     }
 }

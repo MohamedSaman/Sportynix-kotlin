@@ -7,6 +7,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.sportynix.app.domain.model.ChatMessage
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 // Futuristic Liquid Glass Color Palette for Sportynix
 object LiquidGlassTheme {
@@ -38,14 +42,16 @@ object LiquidGlassTheme {
     val AccentGreen = Color(0xFF0D8A4F)
     val EmeraldGlow = Color(0x4010B981)
 
-    val LightGlassBackground = Color(0xF7FFFFFF)
-    val LightGlassBorder = Color(0x1F10B981)
+    val LightGlassBackground = Color(0xDFFFFFFF)
+    val LightGlassBorder = Color(0x3D10B981)
 
-    val DarkGlassBackground = Color(0xF218181B)
-    val DarkGlassBorder = Color(0x1FFFFFFF)
+    val DarkGlassBackground = Color(0xD9161D1B)
+    val DarkGlassBorder = Color(0x3310B981)
 
-    val LightBackground = Color(0xFFF4F6F8)
-    val DarkBackground = Color(0xFF09090B)
+    val LightBackground = Color(0xFFF5FAF8)
+    val DarkBackground = Color(0xFF07100D)
+
+    val GreenGradient = Brush.linearGradient(listOf(Color(0xFF20D997), Color(0xFF08B875), Color(0xFF078F5D)))
 
     @Composable
     fun cardBackground(): Color {
@@ -64,6 +70,17 @@ object LiquidGlassTheme {
 }
 
 @Composable
+fun PremiumMessagesBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    val dark = isSystemInDarkTheme()
+    val base = if (dark) listOf(Color(0xFF06100D), Color(0xFF081713), Color(0xFF07100D)) else listOf(Color(0xFFF9FCFB), Color(0xFFF0FAF6), Color(0xFFF8FAFC))
+    Box(modifier.fillMaxSize().background(Brush.verticalGradient(base))) {
+        Box(Modifier.size(300.dp).offset(x = 190.dp, y = (-95).dp).blur(70.dp).background(LiquidGlassTheme.PrimaryGreen.copy(alpha = if (dark) .14f else .10f), CircleShape))
+        Box(Modifier.size(240.dp).align(Alignment.BottomStart).offset(x = (-120).dp, y = 80.dp).blur(75.dp).background(Color(0xFF38E8B0).copy(alpha = if (dark) .09f else .08f), CircleShape))
+        content()
+    }
+}
+
+@Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(20.dp),
@@ -72,16 +89,20 @@ fun GlassCard(
 ) {
     val bg = LiquidGlassTheme.cardBackground()
     val border = LiquidGlassTheme.cardBorder()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(if (pressed) .982f else 1f, spring(stiffness = Spring.StiffnessMediumLow), label = "glassPress")
 
     Surface(
         modifier = modifier
+            .scale(cardScale)
             .clip(shape)
             .border(1.dp, border, shape)
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+            .then(if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() } else Modifier),
         shape = shape,
         color = bg,
-        shadowElevation = 2.dp,
-        tonalElevation = 1.dp
+        shadowElevation = if (pressed) 1.dp else 7.dp,
+        tonalElevation = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -143,6 +164,16 @@ fun VoiceMessagePlayer(
     var currentProgress by remember { mutableStateOf(0f) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
+    LaunchedEffect(isPlaying, mediaPlayer) {
+        while (isPlaying) {
+            val player = mediaPlayer
+            if (player != null && player.duration > 0) {
+                currentProgress = (player.currentPosition.toFloat() / player.duration).coerceIn(0f, 1f)
+            }
+            delay(80)
+        }
+    }
+
     DisposableEffect(audioUrlOrPath) {
         onDispose {
             mediaPlayer?.stop()
@@ -200,18 +231,15 @@ fun VoiceMessagePlayer(
             )
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            LinearProgressIndicator(
-                progress = { currentProgress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = LiquidGlassTheme.PrimaryGreen,
-                trackColor = LiquidGlassTheme.PrimaryGreen.copy(alpha = 0.2f)
-            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                repeat(24) { index ->
+                    val fraction = (index + 1) / 24f
+                    Box(Modifier.weight(1f).height((5 + ((index * 7) % 15)).dp).clip(RoundedCornerShape(2.dp)).background(if (fraction <= currentProgress) LiquidGlassTheme.PrimaryGreen else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .34f)))
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = String.format(Locale.US, "%d:%02d", durationSeconds / 60, durationSeconds % 60),

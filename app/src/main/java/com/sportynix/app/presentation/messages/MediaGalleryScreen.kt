@@ -1,9 +1,11 @@
 package com.sportynix.app.presentation.messages
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -17,6 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.zIndex
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.AnimatedContent
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -27,6 +37,7 @@ import coil.compose.AsyncImage
 import com.sportynix.app.domain.model.ChatMessage
 import com.sportynix.app.presentation.messages.components.GlassCard
 import com.sportynix.app.presentation.messages.components.LiquidGlassTheme
+import com.sportynix.app.presentation.messages.components.PremiumMessagesBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +45,7 @@ fun MediaGalleryScreen(
     chatId: Long,
     onNavigateBack: () -> Unit,
     onSeeInChat: (Long) -> Unit,
+    onNavigateToBookingDetail: (Long) -> Unit = {},
     viewModel: MediaGalleryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -52,8 +64,9 @@ fun MediaGalleryScreen(
                 )
             )
         },
-        containerColor = LiquidGlassTheme.screenBackground()
+        containerColor = Color.Transparent
     ) { innerPadding ->
+        PremiumMessagesBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -133,7 +146,8 @@ fun MediaGalleryScreen(
                         items(uiState.eventMessages, key = { it.id }) { eventMsg ->
                             EventGalleryCard(
                                 message = eventMsg,
-                                onSeeInChat = { onSeeInChat(eventMsg.id) }
+                                onSeeInChat = { onSeeInChat(eventMsg.id) },
+                                onOpenBooking = { bookingIdFrom(eventMsg)?.let(onNavigateToBookingDetail) }
                             )
                         }
                     }
@@ -141,28 +155,20 @@ fun MediaGalleryScreen(
             }
         }
 
-        if (uiState.selectedImageIndex != null && uiState.selectedImagePath != null) {
-            Box(
-                Modifier.fillMaxSize().zIndex(10f).background(Color.Black.copy(alpha = .96f)),
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(model = uiState.selectedImagePath, contentDescription = "Full screen image", modifier = Modifier.fillMaxSize().padding(vertical = 72.dp), contentScale = ContentScale.Fit)
-                IconButton(onClick = { viewModel.setSelectedImageIndex(null) }, modifier = Modifier.align(Alignment.TopEnd).padding(18.dp).background(Color.Black.copy(alpha = .35f), androidx.compose.foundation.shape.CircleShape)) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
-                val current = uiState.selectedImageIndex ?: 0
-                if (current > 0) IconButton(onClick = { viewModel.setSelectedImageIndex(current - 1) }, modifier = Modifier.align(Alignment.CenterStart).padding(10.dp)) { Icon(Icons.Default.ChevronLeft, "Previous", tint = Color.White, modifier = Modifier.size(38.dp)) }
-                if (current < uiState.photoMessages.lastIndex) IconButton(onClick = { viewModel.setSelectedImageIndex(current + 1) }, modifier = Modifier.align(Alignment.CenterEnd).padding(10.dp)) { Icon(Icons.Default.ChevronRight, "Next", tint = Color.White, modifier = Modifier.size(38.dp)) }
-                Text("${current + 1} / ${uiState.photoMessages.size}", color = Color.White, modifier = Modifier.align(Alignment.BottomCenter).padding(28.dp), fontWeight = FontWeight.Bold)
-            }
+        if (uiState.selectedImageIndex != null) {
+            FullScreenChatGallery(uiState, { viewModel.setSelectedImageIndex(null) }, viewModel::setSelectedImageIndex, viewModel::ensureImage, viewModel::retrySelected)
         }
 
         uiState.errorMessage?.let { error -> Snackbar(Modifier.padding(16.dp)) { Text(error) } }
+        }
     }
 }
 
 @Composable
 fun EventGalleryCard(
     message: ChatMessage,
-    onSeeInChat: () -> Unit
+    onSeeInChat: () -> Unit,
+    onOpenBooking: () -> Unit
 ) {
     GlassCard {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -177,14 +183,55 @@ fun EventGalleryCard(
             Text("${message.senderName} • ${message.createdAt.take(10)}", fontSize = 12.sp, color = Color.Gray)
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
-                onClick = onSeeInChat,
+                onClick = if (bookingIdFrom(message) != null) onOpenBooking else onSeeInChat,
                 modifier = Modifier.align(Alignment.End),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp), tint = LiquidGlassTheme.PrimaryGreen)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("See in Chat", color = LiquidGlassTheme.PrimaryGreen, fontSize = 12.sp)
+                Text(if (bookingIdFrom(message) != null) "View Booking" else "See in Chat", color = LiquidGlassTheme.PrimaryGreen, fontSize = 12.sp)
             }
         }
+    }
+}
+
+private fun bookingIdFrom(message: ChatMessage): Long? {
+    message.bookingId?.let { return it }
+    val keys = listOf("booking_id", "bookingId", "id")
+    for (key in keys) {
+        val value = message.metadata?.get(key) ?: continue
+        when (value) { is Number -> return value.toLong(); is String -> value.toLongOrNull()?.let { return it }; is Map<*, *> -> (value["id"] as? Number)?.toLong()?.let { return it } }
+    }
+    return Regex("booking(?: ID)?[:# ]+(\\d+)", RegexOption.IGNORE_CASE).find(message.message)?.groupValues?.getOrNull(1)?.toLongOrNull()
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun FullScreenChatGallery(state: MediaGalleryUiState, onClose: () -> Unit, onSelect: (Int?) -> Unit, ensure: (Int) -> Unit, retry: () -> Unit) {
+    val initial = state.selectedImageIndex ?: 0
+    val pager = rememberPagerState(initialPage = initial, pageCount = { state.photoMessages.size })
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(pager.currentPage) { onSelect(pager.currentPage); ensure(pager.currentPage) }
+    Box(Modifier.fillMaxSize().zIndex(10f).background(Color.Black)) {
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { page ->
+            val msg = state.photoMessages[page]
+            ZoomableGalleryImage(state.downloadedPaths[msg.id] ?: msg.localMediaPath, state.downloadingMessageId == msg.id, retry)
+        }
+        Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onClose, modifier = Modifier.background(Color.White.copy(alpha=.12f), androidx.compose.foundation.shape.CircleShape)) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+            Spacer(Modifier.weight(1f)); Text("${pager.currentPage + 1} / ${state.photoMessages.size}", color = Color.White, fontWeight = FontWeight.Bold); Spacer(Modifier.weight(1f)); Spacer(Modifier.size(48.dp))
+        }
+        LazyRow(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().background(Color.Black.copy(alpha=.55f)).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(state.photoMessages.size) { index -> val msg = state.photoMessages[index]; AsyncImage(state.downloadedPaths[msg.id] ?: msg.localMediaPath ?: msg.fileUrl, null, Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)).clickable { scope.launch { pager.animateScrollToPage(index) } }.then(if(index == pager.currentPage) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier), contentScale = ContentScale.Crop) }
+        }
+    }
+}
+
+@Composable private fun ZoomableGalleryImage(path: String?, loading: Boolean, retry: () -> Unit) {
+    var scale by remember { mutableFloatStateOf(1f) }; var x by remember { mutableFloatStateOf(0f) }; var y by remember { mutableFloatStateOf(0f) }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (path != null) AsyncImage(path, "Chat image", Modifier.fillMaxSize().padding(vertical = 86.dp).graphicsLayer(scaleX=scale, scaleY=scale, translationX=x, translationY=y).pointerInput(path) { detectTransformGestures { _, pan, zoom, _ -> scale=(scale*zoom).coerceIn(1f,5f); if(scale>1f){ x+=pan.x; y+=pan.y } else { x=0f;y=0f } } }.pointerInput(path) { detectTapGestures(onDoubleTap = { if(scale>1f){scale=1f;x=0f;y=0f}else scale=2.5f }) }, contentScale=ContentScale.Fit)
+        else if (loading) Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(color=Color.White); Spacer(Modifier.height(10.dp)); Text("Downloading…", color=Color.White.copy(alpha=.8f)) }
+        else Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.BrokenImage, null, Modifier.size(42.dp), tint=Color.White.copy(alpha=.6f)); Text("Couldn't load image", color=Color.White); TextButton(onClick=retry){Text("Retry", color=LiquidGlassTheme.PrimaryGreen)} }
     }
 }

@@ -2,6 +2,12 @@ package com.sportynix.app.presentation.messages
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,12 +26,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sportynix.app.domain.model.ChatMember
 import com.sportynix.app.presentation.messages.components.GlassBadge
 import com.sportynix.app.presentation.messages.components.GlassCard
 import com.sportynix.app.presentation.messages.components.LiquidGlassTheme
+import com.sportynix.app.presentation.messages.components.PremiumMessagesBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +43,7 @@ fun ChatInfoScreen(
     onNavigateToGallery: (Long) -> Unit,
     onNavigateToChat: (Long) -> Unit = {},
     onNavigateToBookingDetail: (Long) -> Unit = {},
+    onBookMatch: (Long, Long, Long) -> Unit = { _, _, _ -> },
     viewModel: ChatInfoViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -44,6 +53,9 @@ fun ChatInfoScreen(
     var confirmation by remember { mutableStateOf<String?>(null) }
     var reportReason by remember { mutableStateOf("") }
     var reportNotes by remember { mutableStateOf("") }
+    var showProfileImage by remember { mutableStateOf(false) }
+    var teamTab by remember { mutableIntStateOf(0) }
+    var gameTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
         topBar = {
@@ -59,11 +71,18 @@ fun ChatInfoScreen(
                 )
             )
         },
-        containerColor = LiquidGlassTheme.screenBackground()
+        containerColor = Color.Transparent
     ) { innerPadding ->
+        PremiumMessagesBackground {
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = LiquidGlassTheme.PrimaryGreen)
+            }
+        } else if (uiState.errorMessage != null && chat == null) {
+            Column(Modifier.fillMaxSize().padding(innerPadding).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Default.ErrorOutline, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.height(12.dp)); Text(uiState.errorMessage ?: "Failed to load chat info", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(16.dp)); Button(onClick = viewModel::loadInfo, colors = ButtonDefaults.buttonColors(containerColor = LiquidGlassTheme.PrimaryGreen)) { Text("Retry") }
             }
         } else {
             LazyColumn(
@@ -73,9 +92,9 @@ fun ChatInfoScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                // Header Profile Card
+                // Swift-parity profile header
                 item {
-                    GlassCard {
+                    GlassCard(onClick = { showProfileImage = true }) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.fillMaxWidth()
@@ -84,12 +103,12 @@ fun ChatInfoScreen(
                                 AsyncImage(
                                     model = avatar,
                                     contentDescription = null,
-                                    modifier = Modifier.size(80.dp).clip(CircleShape),
+                                    modifier = Modifier.size(112.dp).clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Box(
-                                    modifier = Modifier.size(80.dp).clip(CircleShape).background(LiquidGlassTheme.PrimaryGreen),
+                                    modifier = Modifier.size(112.dp).clip(CircleShape).background(LiquidGlassTheme.PrimaryGreen.copy(alpha = .16f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(title.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 32.sp)
@@ -97,8 +116,20 @@ fun ChatInfoScreen(
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(title, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                            Text(chat?.chatType ?: "Direct Chat", fontSize = 13.sp, color = Color.Gray)
+                            Text(
+                                if (chat?.chatType == "direct") {
+                                    when { chat.blockedByMe == true -> "Blocked"; chat.isBlocked == false -> "Online"; else -> "Offline" }
+                                } else "${chat?.membersCount ?: uiState.members.size} members",
+                                fontSize = 13.sp,
+                                color = if (chat?.chatType == "direct" && chat.isBlocked == false) LiquidGlassTheme.PrimaryGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
+                    }
+                }
+
+                item {
+                    Button(onClick = { onNavigateBack() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = LiquidGlassTheme.PrimaryGreen)) {
+                        Icon(Icons.Default.Forum, null); Spacer(Modifier.width(8.dp)); Text("Open Chat", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 5.dp))
                     }
                 }
 
@@ -115,6 +146,22 @@ fun ChatInfoScreen(
                                     InfoAction(Icons.Default.Block, if (chat.blockedByMe == true) "Unblock" else "Block") { confirmation = "block" }
                                 }
                             }
+                        }
+                    }
+
+                    item {
+                        GlassCard(onClick = { onNavigateToGallery(chatId) }) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(42.dp).clip(RoundedCornerShape(11.dp)).background(LiquidGlassTheme.PrimaryGreen.copy(alpha=.14f)), contentAlignment = Alignment.Center) { Icon(Icons.Default.PermMedia, null, tint = LiquidGlassTheme.PrimaryGreen) }
+                                Spacer(Modifier.width(12.dp)); Text("Media, Links and Docs", Modifier.weight(1f), fontWeight = FontWeight.SemiBold); Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    item {
+                        GlassCard {
+                            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Info, null, tint = LiquidGlassTheme.PrimaryGreen); Spacer(Modifier.width(10.dp)); Text("About", fontWeight = FontWeight.Bold) }
+                            Spacer(Modifier.height(10.dp)); Text(chat.description?.takeIf { it.isNotBlank() } ?: if (chat.chatType == "direct") "Hey there! I am using Sportynix." else "No description", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
@@ -150,10 +197,18 @@ fun ChatInfoScreen(
                             challenge.matchTime?.let { DetailLine(Icons.Default.Schedule, "Time", it) }
                         }
                     }
+                    if (challenge.venue != null && challenge.sport != null) {
+                        item {
+                            Button(onClick = { onBookMatch(challenge.venue.id, challenge.sport.id, chatId) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = LiquidGlassTheme.PrimaryGreen)) {
+                                Icon(Icons.Default.CalendarMonth, null); Spacer(Modifier.width(8.dp)); Text("Book Match", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 6.dp))
+                            }
+                        }
+                    }
                     val challengeMembers = challenge.challengerMembers + challenge.challengedMembers
                     if (challengeMembers.isNotEmpty()) {
-                        item { Text("Challenge Members (${challengeMembers.size})", fontWeight = FontWeight.Bold, color = LiquidGlassTheme.PrimaryGreen) }
-                        items(challengeMembers, key = { "challenge_${it.id}_${it.name}" }) { member ->
+                        item { PremiumTabs(listOf("Challenger (${challenge.challengerMembers.size})", "Challenged (${challenge.challengedMembers.size})"), teamTab) { teamTab = it } }
+                        val visibleMembers = if (teamTab == 0) challenge.challengerMembers else challenge.challengedMembers
+                        items(visibleMembers, key = { "challenge_${it.id}_${it.name}" }) { member ->
                             GlassCard(onClick = { viewModel.openDirectChat(member.id, onNavigateToChat) }) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(Modifier.size(42.dp).clip(CircleShape).background(LiquidGlassTheme.PrimaryGreen), contentAlignment = Alignment.Center) { Text(member.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
@@ -164,13 +219,18 @@ fun ChatInfoScreen(
                         }
                     }
                     challenge.pastGames?.results?.takeIf { it.isNotEmpty() }?.let { games ->
-                        item { Text("Past Games", fontWeight = FontWeight.Bold, color = LiquidGlassTheme.PrimaryGreen) }
-                        items(games, key = { "game_${it.id}" }) { game ->
+                        val upcoming = games.filter { it.booking?.status?.contains("confirm", true) == true }
+                        val cancelled = games.filter { it.booking?.status?.let { s -> s.contains("cancel", true) || s.contains("declin", true) } == true }
+                        val other = games - upcoming.toSet() - cancelled.toSet()
+                        item { PremiumTabs(listOf("Upcoming (${upcoming.size})", "Cancelled (${cancelled.size})", "Other (${other.size})"), gameTab) { gameTab = it } }
+                        val visibleGames = when(gameTab) { 0 -> upcoming; 1 -> cancelled; else -> other }
+                        if (visibleGames.isEmpty()) item { EmptyGamesCard() }
+                        items(visibleGames, key = { "game_${it.id}" }) { game ->
                             GlassCard(onClick = { game.booking?.id?.let(onNavigateToBookingDetail) }) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.EmojiEvents, null, tint = LiquidGlassTheme.PrimaryGreen)
                                     Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(game.venue?.name ?: "Match", fontWeight = FontWeight.Bold); Text(listOfNotNull(game.matchDate, game.matchTime).joinToString(" • "), fontSize = 12.sp, color = Color.Gray) }
-                                    Text(game.booking?.status ?: game.status, fontSize = 11.sp, color = LiquidGlassTheme.PrimaryGreen, fontWeight = FontWeight.Bold)
+                                    Column(horizontalAlignment = Alignment.End) { Text(game.booking?.status ?: game.status, fontSize = 11.sp, color = LiquidGlassTheme.PrimaryGreen, fontWeight = FontWeight.Bold); if (game.booking != null) { Spacer(Modifier.height(5.dp)); Icon(Icons.Default.QrCode2, "Open booking QR", tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
                                 }
                             }
                         }
@@ -248,6 +308,7 @@ fun ChatInfoScreen(
                 }
             }
         }
+        }
     }
 
     if (confirmation != null) {
@@ -283,7 +344,39 @@ fun ChatInfoScreen(
             dismissButton = { TextButton(onClick = { viewModel.showReportModal(false) }) { Text("Cancel") } }
         )
     }
+
+    if (showProfileImage) {
+        Dialog(onDismissRequest = { showProfileImage = false }) {
+            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                if (!avatar.isNullOrBlank()) AsyncImage(avatar, "$title profile image", Modifier.fillMaxWidth(), contentScale = ContentScale.Fit)
+                else Icon(if (chat?.chatType == "direct") Icons.Default.Person else Icons.Default.Groups, null, Modifier.size(150.dp), tint = Color.White.copy(alpha=.55f))
+                Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { showProfileImage = false }, modifier = Modifier.background(Color.Black.copy(alpha=.5f), CircleShape)) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+                    Spacer(Modifier.weight(1f)); Text(title, color = Color.White, fontWeight = FontWeight.Bold); Spacer(Modifier.weight(1f)); Spacer(Modifier.size(48.dp))
+                }
+            }
+        }
+    }
+
+    if (uiState.errorMessage != null && chat != null) {
+        AlertDialog(onDismissRequest = viewModel::dismissError, icon = { Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error) }, title = { Text("Something went wrong") }, text = { Text(uiState.errorMessage ?: "Request failed") }, confirmButton = { TextButton(onClick = viewModel::dismissError) { Text("OK") } })
+    }
 }
+
+@Composable
+private fun PremiumTabs(labels: List<String>, selected: Int, onSelected: (Int) -> Unit) {
+    Surface(shape = RoundedCornerShape(14.dp), color = LiquidGlassTheme.cardBackground(), border = androidx.compose.foundation.BorderStroke(1.dp, LiquidGlassTheme.cardBorder())) {
+        Row(Modifier.fillMaxWidth().padding(4.dp)) {
+            labels.forEachIndexed { index, label ->
+                Surface(onClick = { onSelected(index) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(11.dp), color = if (selected == index) LiquidGlassTheme.PrimaryGreen else Color.Transparent) {
+                    Text(label, Modifier.padding(horizontal = 4.dp, vertical = 10.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 12.sp, fontWeight = if (selected == index) FontWeight.Bold else FontWeight.Medium, color = if (selected == index) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun EmptyGamesCard() { GlassCard { Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.EventBusy, null, tint = MaterialTheme.colorScheme.onSurfaceVariant); Spacer(Modifier.height(6.dp)); Text("No games found", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
 
 @Composable
 fun MemberRow(member: ChatMember, canManage: Boolean, onMessage: () -> Unit, onToggleAdmin: () -> Unit) {

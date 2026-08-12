@@ -437,6 +437,7 @@ class ChatRepositoryImpl @Inject constructor(
             val res = chatApi.deleteMessage(chatId, messageId)
             if (res.isSuccessful || res.code() == 204) {
                 dao.deleteMessage(chatId, messageId)
+                context.cacheDir.listFiles()?.filter { it.name.startsWith("chat_media_${messageId}.") }?.forEach { it.delete() }
                 Result.success(Unit)
             } else Result.failure(Exception("Failed to delete message"))
         } catch (e: Exception) {
@@ -447,6 +448,7 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun deleteMessageForMe(chatId: Long, messageId: Long): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             dao.deleteMessage(chatId, messageId)
+            context.cacheDir.listFiles()?.filter { it.name.startsWith("chat_media_${messageId}.") }?.forEach { it.delete() }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

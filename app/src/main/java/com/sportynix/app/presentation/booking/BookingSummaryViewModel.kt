@@ -118,7 +118,8 @@ class BookingSummaryViewModel @Inject constructor(
                     selectedDays = payload.selectedDays,
                     slots = slotDtos,
                     paymentOption = state.selectedPaymentOption,
-                    pointsRedeemed = if (state.redeemPoints) state.pointsToRedeem else 0
+                    pointsRedeemed = if (state.redeemPoints) state.pointsToRedeem else 0,
+                    chatId = payload.chatId
                 )
                 val res = bookingApiService.getPaymentQuote(req)
                 if (res.isSuccessful && res.body() != null) {
@@ -180,7 +181,8 @@ class BookingSummaryViewModel @Inject constructor(
                     paymentOption = state.selectedPaymentOption,
                     savedCardId = state.selectedSavedCard?.id,
                     saveCard = state.saveCardForFuture,
-                    pointsToRedeem = if (state.redeemPoints) state.pointsToRedeem else 0
+                    pointsToRedeem = if (state.redeemPoints) state.pointsToRedeem else 0,
+                    chatId = payload.chatId
                 )
 
                 val res = bookingApiService.createPaymentCheckout(req)

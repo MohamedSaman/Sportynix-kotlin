@@ -25,12 +25,14 @@ import com.sportynix.app.domain.model.MutualUser
 import com.sportynix.app.domain.model.UserSearchResult
 import com.sportynix.app.presentation.messages.components.GlassCard
 import com.sportynix.app.presentation.messages.components.LiquidGlassTheme
+import com.sportynix.app.presentation.messages.components.PremiumMessagesBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewChatScreen(
     onNavigateBack: () -> Unit,
     onNavigateToChat: (Long) -> Unit,
+    onNavigateToNewTeam: () -> Unit = {},
     viewModel: NewChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -49,8 +51,9 @@ fun NewChatScreen(
                 )
             )
         },
-        containerColor = LiquidGlassTheme.screenBackground()
+        containerColor = Color.Transparent
     ) { innerPadding ->
+        PremiumMessagesBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -82,7 +85,7 @@ fun NewChatScreen(
                     .padding(16.dp)
             )
 
-            if (uiState.isInitialLoading || uiState.isLoading) {
+            if (uiState.isInitialLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = LiquidGlassTheme.PrimaryGreen)
                 }
@@ -94,6 +97,15 @@ fun NewChatScreen(
                     val receivedPending = uiState.chatRequestsReceived.filter { it.status == "pending" }
                     val sentPending = uiState.chatRequestsSent.filter { it.status == "pending" }
                     val mutualIds = uiState.mutualUsers.map { it.id }.toSet()
+
+                    item {
+                        GlassCard(onClick = onNavigateToNewTeam) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(46.dp).clip(CircleShape).background(LiquidGlassTheme.PrimaryGreen.copy(alpha=.14f)), contentAlignment = Alignment.Center) { Icon(Icons.Default.Groups, null, tint = LiquidGlassTheme.PrimaryGreen) }
+                                Spacer(Modifier.width(14.dp)); Text("New Team", Modifier.weight(1f), fontWeight = FontWeight.Bold); Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
 
                     if (receivedPending.isNotEmpty()) {
                         item { SectionLabel("Chat Requests") }
@@ -139,16 +151,22 @@ fun NewChatScreen(
                                 busy = uiState.busyUserId == uid,
                                 actionLabel = when {
                                     incoming != null -> "Accept"
-                                    outgoing != null -> "Pending"
+                                    outgoing != null -> "Cancel"
                                     else -> "Request"
                                 },
                                 onOpenChat = { id -> viewModel.openDirectChat(id, onNavigateToChat) },
                                 onRequestChat = { id ->
                                     if (incoming != null) viewModel.acceptChatRequest(incoming, onNavigateToChat)
-                                    else if (outgoing == null) viewModel.sendChatRequest(id)
+                                    else if (outgoing != null) viewModel.cancelSentRequestFor(id)
+                                    else viewModel.sendChatRequest(id)
                                 }
                             )
                         }
+                    }
+
+                    if (uiState.query.isBlank() && uiState.recentUsers.isNotEmpty()) {
+                        item { SectionLabel("RECENT CHATS") }
+                        items(uiState.recentUsers, key = { "recent_${it.id}" }) { user -> MutualUserRow(user) { viewModel.openDirectChat(user.id, onNavigateToChat) } }
                     }
 
                     if (uiState.mutualUsers.isNotEmpty()) {
@@ -168,12 +186,20 @@ fun NewChatScreen(
                             )
                         }
                     }
+
+                    if (!uiState.isLoading && uiState.query.isBlank() && uiState.recentUsers.isEmpty() && uiState.mutualUsers.isEmpty() && receivedPending.isEmpty() && sentPending.isEmpty()) {
+                        item { EmptyNewChat(Icons.Default.PeopleOutline, "No contacts found") }
+                    } else if (!uiState.isLoading && uiState.query.isNotBlank() && uiState.searchResults.isEmpty()) {
+                        item { EmptyNewChat(Icons.Default.SearchOff, "No results matching \"${uiState.query}\"") }
+                    }
+                    if (uiState.isLoading) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LiquidGlassTheme.PrimaryGreen) } }
                 }
             }
 
             uiState.errorMessage?.let { error ->
-                Snackbar(modifier = Modifier.padding(16.dp)) { Text(error) }
+                Snackbar(modifier = Modifier.padding(16.dp), action = { TextButton(onClick = viewModel::loadInitialData) { Text("Retry") } }) { Text(error) }
             }
+        }
         }
     }
 }
@@ -249,8 +275,8 @@ fun UserSearchRow(
 
             Button(
                 onClick = { onRequestChat(uid) },
-                enabled = !busy && uid > 0 && actionLabel != "Pending",
-                colors = ButtonDefaults.buttonColors(containerColor = LiquidGlassTheme.PrimaryGreen),
+                enabled = !busy && uid > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = if (actionLabel == "Cancel") Color.Red.copy(alpha=.85f) else LiquidGlassTheme.PrimaryGreen),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 if (busy) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
@@ -259,6 +285,8 @@ fun UserSearchRow(
         }
     }
 }
+
+@Composable private fun EmptyNewChat(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) { Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(icon, null, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.45f)); Spacer(Modifier.height(10.dp)); Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
 
 @Composable
 private fun SectionLabel(text: String) {

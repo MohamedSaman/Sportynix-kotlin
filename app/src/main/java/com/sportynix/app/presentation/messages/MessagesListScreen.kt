@@ -31,6 +31,7 @@ import com.sportynix.app.domain.model.ChatRequestItem
 import com.sportynix.app.presentation.messages.components.GlassBadge
 import com.sportynix.app.presentation.messages.components.GlassCard
 import com.sportynix.app.presentation.messages.components.LiquidGlassTheme
+import com.sportynix.app.presentation.messages.components.PremiumMessagesBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,8 +57,9 @@ fun MessagesListScreen(
                 )
             )
         },
-        containerColor = LiquidGlassTheme.screenBackground()
+        containerColor = Color.Transparent
     ) { innerPadding ->
+        PremiumMessagesBackground {
         Box(Modifier.fillMaxSize().padding(innerPadding)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Main Tab Bar: My Chats vs Discover
@@ -262,6 +264,7 @@ fun MessagesListScreen(
             shape = CircleShape
         ) { Icon(Icons.Default.Add, "New chat", Modifier.size(30.dp)) }
         uiState.errorMessage?.let { Snackbar(Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 90.dp)) { Text(it) } }
+        }
         }
     }
 }

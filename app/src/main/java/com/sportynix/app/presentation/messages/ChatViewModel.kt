@@ -141,11 +141,11 @@ class ChatViewModel @Inject constructor(
 
     fun sendTextMessage() {
         val text = _uiState.value.textInput.trim()
-        if (text.isEmpty() || _uiState.value.isBlocked) return
+        if (text.isEmpty() || _uiState.value.isBlocked || _uiState.value.chatDetails?.canPost == false) return
 
         val replyMsg = _uiState.value.replyingToMessage
         val metadata = replyMsg?.let {
-            mapOf("reply_to" to mapOf("id" to it.id, "sender_name" to it.senderName, "message" to it.message))
+            mapOf("reply_to" to mapOf("id" to it.id, "sender_name" to it.senderName, "preview" to replyPreview(it)))
         }
 
         _uiState.update { it.copy(textInput = "", replyingToMessage = null) }
@@ -158,6 +158,13 @@ class ChatViewModel @Inject constructor(
                 metadata = metadata
             )
         }
+    }
+
+    private fun replyPreview(message: ChatMessage): String = when (message.messageType) {
+        "photo", "image" -> "Photo"
+        "voice" -> "Voice message"
+        "event" -> message.metadata?.get("title")?.toString() ?: "Booking event"
+        else -> message.message.take(160)
     }
 
     fun startVoiceRecording() {

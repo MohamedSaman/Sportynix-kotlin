@@ -68,7 +68,8 @@ data class QuoteRequestDto(
     @SerializedName("selected_days") val selectedDays: List<String> = emptyList(),
     @SerializedName("slots") val slots: List<QuoteSlotDto>,
     @SerializedName("payment_option") val paymentOption: String = "advance",
-    @SerializedName("points_redeemed") val pointsRedeemed: Int = 0
+    @SerializedName("points_redeemed") val pointsRedeemed: Int = 0,
+    @SerializedName("chat_id") val chatId: Long? = null
 )
 
 data class QuoteResponseDto(
@@ -126,7 +127,8 @@ data class PaymentCheckoutRequestDto(
     @SerializedName("card_payment_mode") val cardPaymentMode: String? = null,
     @SerializedName("saved_card_id") val savedCardId: Long? = null,
     @SerializedName("save_card") val saveCard: Boolean = false,
-    @SerializedName("points_to_redeem") val pointsToRedeem: Int = 0
+    @SerializedName("points_to_redeem") val pointsToRedeem: Int = 0,
+    @SerializedName("chat_id") val chatId: Long? = null
 )
 
 data class PaymentCheckoutUrlDto(
@@ -322,7 +324,8 @@ data class BookingPayload(
     val bookingDate: String,
     val selectedDays: List<String>,
     val slots: List<BookingSlotInfo>,
-    val totalPrice: Double
+    val totalPrice: Double,
+    val chatId: Long? = null
 )
 
 data class BookingTeamData(

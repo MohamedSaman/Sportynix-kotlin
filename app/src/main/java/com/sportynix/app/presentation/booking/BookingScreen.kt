@@ -49,6 +49,7 @@ fun BookingScreen(
     complexLocation: String = "",
     complexRating: Double = 5.0,
     complexReviews: Int = 0,
+    chatId: Long? = null,
     onNavigateBack: () -> Unit,
     onNavigateToSummary: (BookingPayload) -> Unit,
     viewModel: BookingViewModel = hiltViewModel()
@@ -110,7 +111,7 @@ fun BookingScreen(
                 val end = (slot.rawEnd ?: slot.endTime.orEmpty().take(5)).replace("24:00", "00:00")
                 BookingSlotInfo(start, end, slot.startTime ?: start, slot.endTime ?: end,
                     slot.duration ?: 60, slot.price ?: unitPrice)
-            }, totalPrice = totalAmount)
+            }, totalPrice = totalAmount, chatId = chatId)
     }
 
     LaunchedEffect(state.proceedToSummary) {

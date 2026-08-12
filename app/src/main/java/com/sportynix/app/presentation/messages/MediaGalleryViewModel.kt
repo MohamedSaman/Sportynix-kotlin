@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import javax.inject.Inject
 
 data class MediaGalleryUiState(
@@ -22,6 +23,7 @@ data class MediaGalleryUiState(
     val eventMessages: List<ChatMessage> = emptyList(),
     val selectedImageIndex: Int? = null,
     val selectedImagePath: String? = null,
+    val downloadedPaths: Map<Long, String> = emptyMap(),
     val downloadingMessageId: Long? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -33,6 +35,7 @@ class MediaGalleryViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+    private val downloadJobs = mutableMapOf<Long, Job>()
 
     private val chatId: Long = savedStateHandle.get<String>("chatId")?.toLongOrNull() ?: 0L
 
@@ -47,7 +50,8 @@ class MediaGalleryViewModel @Inject constructor(
 
     fun loadMedia() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            if (_uiState.value.isLoading) return@launch
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val photosRes = chatRepository.getPhotoMessages(chatId, 0)
             val eventsRes = chatRepository.getEventMessages(chatId, 0)
 
@@ -55,7 +59,8 @@ class MediaGalleryViewModel @Inject constructor(
                 it.copy(
                     photoMessages = photosRes.getOrDefault(emptyList()),
                     eventMessages = eventsRes.getOrDefault(emptyList()),
-                    isLoading = false
+                    isLoading = false,
+                    errorMessage = photosRes.exceptionOrNull()?.message ?: eventsRes.exceptionOrNull()?.message
                 )
             }
         }
@@ -71,20 +76,38 @@ class MediaGalleryViewModel @Inject constructor(
             return
         }
         val message = _uiState.value.photoMessages.getOrNull(index) ?: return
+        _uiState.update { it.copy(selectedImageIndex = index) }
+        ensureImage(index)
+    }
+
+    fun ensureImage(index: Int) {
+        val message = _uiState.value.photoMessages.getOrNull(index) ?: return
+        _uiState.value.downloadedPaths[message.id]?.takeIf { java.io.File(it).exists() }?.let { path ->
+            _uiState.update { it.copy(selectedImagePath = if (it.selectedImageIndex == index) path else it.selectedImagePath) }; return
+        }
         val local = message.localMediaPath?.takeIf { java.io.File(it).exists() }
         if (local != null) {
-            _uiState.update { it.copy(selectedImageIndex = index, selectedImagePath = local) }
+            _uiState.update { it.copy(downloadedPaths = it.downloadedPaths + (message.id to local), selectedImagePath = if (it.selectedImageIndex == index) local else it.selectedImagePath) }
             return
         }
-        viewModelScope.launch {
+        val suffix = message.fileUrl?.substringAfterLast('.', "jpg")?.substringBefore('?')?.take(5) ?: "jpg"
+        val destination = java.io.File(context.cacheDir, "chat_media_${message.id}.$suffix")
+        if (destination.exists() && destination.length() > 0) {
+            _uiState.update { it.copy(downloadedPaths = it.downloadedPaths + (message.id to destination.absolutePath), selectedImagePath = if (it.selectedImageIndex == index) destination.absolutePath else it.selectedImagePath) }; return
+        }
+        if (downloadJobs[message.id]?.isActive == true) return
+        downloadJobs[message.id] = viewModelScope.launch {
             _uiState.update { it.copy(downloadingMessageId = message.id, errorMessage = null) }
-            val suffix = message.fileUrl?.substringAfterLast('.', "jpg")?.substringBefore('?')?.take(5) ?: "jpg"
-            val destination = java.io.File(context.cacheDir, "chat_media_${message.id}.$suffix")
             chatRepository.downloadMedia(chatId, message.id, destination).onSuccess { file ->
-                _uiState.update { it.copy(selectedImageIndex = index, selectedImagePath = file.absolutePath, downloadingMessageId = null) }
+                _uiState.update { it.copy(downloadedPaths = it.downloadedPaths + (message.id to file.absolutePath), selectedImagePath = if (it.selectedImageIndex == index) file.absolutePath else it.selectedImagePath, downloadingMessageId = null) }
             }.onFailure { error ->
                 _uiState.update { it.copy(errorMessage = error.message ?: "Unable to download media", downloadingMessageId = null) }
             }
+            downloadJobs.remove(message.id)
         }
     }
+
+    fun retrySelected() { _uiState.value.selectedImageIndex?.let(::ensureImage) }
+
+    fun dismissError() = _uiState.update { it.copy(errorMessage = null) }
 }
