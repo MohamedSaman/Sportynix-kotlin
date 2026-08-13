@@ -29,63 +29,14 @@ class AuctionViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AuctionUiState())
     val uiState: StateFlow<AuctionUiState> = _uiState.asStateFlow()
 
-    init {
-        loadAuctions()
-    }
-
-    fun loadAuctions() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            when (val res = repository.getAuctions()) {
-                is ApiResult.Success -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false, auctions = res.data)
-                }
-                is ApiResult.Error -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = res.message)
-                }
-                else -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
-                }
-            }
-        }
-    }
-
     fun enterAuctionRoom(auctionId: String) {
         viewModelScope.launch {
-            repository.connectAuctionWebSocket(auctionId)
-            val detailRes = repository.getAuctionDetail(auctionId)
-            val teamsRes = repository.getAuctionTeams(auctionId)
-
-            _uiState.value = _uiState.value.copy(
-                activeAuction = (detailRes as? ApiResult.Success)?.data,
-                teams = (teamsRes as? ApiResult.Success)?.data ?: emptyList()
-            )
-        }
-    }
-
-    fun placeBid(auctionId: String, teamId: String, amount: Double) {
-        viewModelScope.launch {
-            when (val res = repository.placeBid(auctionId, teamId, amount)) {
-                is ApiResult.Success -> {
-                    _uiState.value.activeAuction?.let { current ->
-                        _uiState.value = _uiState.value.copy(
-                            activeAuction = current.copy(
-                                currentBidAmount = res.data.newHighestBid,
-                                currentHighestBidder = res.data.highestBidderName
-                            )
-                        )
-                    }
-                }
-                is ApiResult.Error -> {
-                    _uiState.value = _uiState.value.copy(error = res.message)
-                }
-                else -> {}
-            }
+            repository.connectWebSocket(auctionId)
         }
     }
 
     override fun onCleared() {
         super.onCleared()
-        repository.disconnectAuctionWebSocket()
+        repository.disconnectWebSocket()
     }
 }

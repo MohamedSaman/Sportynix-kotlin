@@ -743,7 +743,7 @@ private fun AverageRatingSummaryBar(
     cardBg: Color,
     borderClr: Color
 ) {
-    val total = reviews.fold(0.0) { acc, r -> acc + (r.rating ?: 0f) }
+    val total = reviews.fold(0.0) { acc, r -> acc + (r.rating ?: 0).toDouble() }
     val avg = if (reviews.isNotEmpty()) total / reviews.size else 0.0
 
     Row(

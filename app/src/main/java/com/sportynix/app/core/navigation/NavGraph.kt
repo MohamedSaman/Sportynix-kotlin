@@ -708,10 +708,23 @@ fun NavGraph(
 
         composable(Screen.LeagueList.route) {
             com.sportynix.app.presentation.leagues.LeagueListScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToLeagueDetail = { leagueId ->
+                onNavigateToDetail = { leagueId ->
                     navController.navigate(Screen.LeagueDetail.createRoute(leagueId))
+                },
+                onNavigateToCreate = {
+                    navController.navigate(Screen.LeagueCreate.createRoute())
                 }
+            )
+        }
+
+        composable(
+            route = Screen.LeagueCreate.route,
+            arguments = listOf(navArgument("leagueId") { type = NavType.StringType; nullable = true; defaultValue = null })
+        ) { backStackEntry ->
+            val leagueId = backStackEntry.arguments?.getString("leagueId")
+            com.sportynix.app.presentation.leagues.LeagueCreateScreen(
+                leagueId = leagueId,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -727,39 +740,36 @@ fun NavGraph(
             com.sportynix.app.presentation.leagues.LeagueDetailScreen(
                 leagueId = leagueId,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToTeamRegistration = { leagueName, sportType ->
-                    navController.navigate(Screen.TeamRegistration.createRoute(leagueId, leagueName, sportType))
-                }
-            )
-        }
-
-        composable(Screen.TournamentList.route) {
-            com.sportynix.app.presentation.tournaments.TournamentListScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToTournamentDetail = { tournamentId ->
-                    navController.navigate(Screen.TournamentDetail.createRoute(tournamentId))
-                }
+                onNavigateToEdit = { lId -> navController.navigate(Screen.LeagueCreate.createRoute(lId)) },
+                onNavigateToTeamDetail = { lId, tId -> navController.navigate(Screen.LeagueTeamDetail.createRoute(lId, tId)) },
+                onNavigateToApplications = { lId -> navController.navigate(Screen.LeagueApplications.createRoute(lId)) },
+                onNavigateToAuction = { lId -> navController.navigate(Screen.Auction.createRoute(lId)) }
             )
         }
 
         composable(
-            route = Screen.TournamentDetail.route,
-            arguments = listOf(navArgument("tournamentId") { type = NavType.StringType })
+            route = Screen.LeagueTeamDetail.route,
+            arguments = listOf(
+                navArgument("leagueId") { type = NavType.StringType },
+                navArgument("teamId") { type = NavType.StringType }
+            )
         ) { backStackEntry ->
-            val tournamentId = backStackEntry.arguments?.getString("tournamentId") ?: ""
-            com.sportynix.app.presentation.tournaments.TournamentDetailScreen(
-                tournamentId = tournamentId,
+            val leagueId = backStackEntry.arguments?.getString("leagueId") ?: ""
+            val teamId = backStackEntry.arguments?.getString("teamId") ?: ""
+            com.sportynix.app.presentation.leagues.LeagueTeamDetailsScreen(
+                leagueId = leagueId,
+                teamId = teamId,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(
-            route = Screen.LiveCricketScoring.route,
-            arguments = listOf(navArgument("matchId") { type = NavType.StringType })
+            route = Screen.LeagueApplications.route,
+            arguments = listOf(navArgument("leagueId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
-            com.sportynix.app.presentation.cricket.LiveCricketScoringScreen(
-                matchId = matchId,
+            val leagueId = backStackEntry.arguments?.getString("leagueId") ?: ""
+            com.sportynix.app.presentation.leagues.LeaguePlayerApplicationsScreen(
+                leagueId = leagueId,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -769,8 +779,8 @@ fun NavGraph(
             arguments = listOf(navArgument("auctionId") { type = NavType.StringType })
         ) { backStackEntry ->
             val auctionId = backStackEntry.arguments?.getString("auctionId") ?: ""
-            com.sportynix.app.presentation.auction.AuctionScreen(
-                auctionId = auctionId,
+            com.sportynix.app.presentation.leagues.LeagueAuctionScreen(
+                leagueId = auctionId,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -858,6 +868,93 @@ fun NavGraph(
                     }
                 },
                 onNavigateToBookingDetail = { bookingId -> navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString())) }
+            )
+        }
+
+        composable(
+            route = Screen.MatchDetails.route,
+            arguments = listOf(navArgument("matchId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
+            val viewModel: com.sportynix.app.presentation.cricket.MatchDetailsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            com.sportynix.app.presentation.cricket.MatchDetailsScreen(
+                matchId = matchId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateToScoring = { id -> navController.navigate(Screen.LiveCricketScoring.createRoute(id)) },
+                onPlayerClick = { playerId -> navController.navigate(Screen.PlayerProfile.createRoute(playerId)) }
+            )
+        }
+
+        composable(
+            route = Screen.CricketLiveView.route,
+            arguments = listOf(navArgument("matchId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
+            val viewModel: com.sportynix.app.presentation.cricket.CricketLiveViewViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            com.sportynix.app.presentation.cricket.CricketLiveViewScreen(
+                matchId = matchId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onPlayerClick = { playerId -> navController.navigate(Screen.PlayerProfile.createRoute(playerId)) }
+            )
+        }
+
+        composable(
+            route = Screen.MatchScoringHub.route,
+            arguments = listOf(navArgument("matchId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
+            val viewModel: com.sportynix.app.presentation.cricket.MatchScoringHubViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            com.sportynix.app.presentation.cricket.MatchScoringHubScreen(
+                matchId = matchId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateToScoring = { id -> navController.navigate(Screen.LiveCricketScoring.createRoute(id)) }
+            )
+        }
+
+        composable(
+            route = Screen.LiveCricketScoring.route,
+            arguments = listOf(navArgument("matchId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
+            val viewModel: com.sportynix.app.presentation.cricket.CricketScoringViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            com.sportynix.app.presentation.cricket.LiveCricketScoringScreen(
+                matchId = matchId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.PlayerProfile.route,
+            arguments = listOf(
+                navArgument("playerId") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType; nullable = true },
+                navArgument("role") { type = NavType.StringType; nullable = true },
+                navArgument("batting") { type = NavType.StringType; nullable = true },
+                navArgument("bowling") { type = NavType.StringType; nullable = true },
+                navArgument("image") { type = NavType.StringType; nullable = true }
+            )
+        ) { backStackEntry ->
+            val playerId = backStackEntry.arguments?.getString("playerId") ?: ""
+            val name = backStackEntry.arguments?.getString("name")
+            val role = backStackEntry.arguments?.getString("role")
+            val batting = backStackEntry.arguments?.getString("batting")
+            val bowling = backStackEntry.arguments?.getString("bowling")
+            val image = backStackEntry.arguments?.getString("image")
+
+            val viewModel: com.sportynix.app.presentation.cricket.PlayerProfileViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            com.sportynix.app.presentation.cricket.PlayerProfileScreen(
+                playerId = playerId,
+                playerName = name,
+                playerRole = role,
+                battingStyle = batting,
+                bowlingStyle = bowling,
+                profileImage = image,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
     }

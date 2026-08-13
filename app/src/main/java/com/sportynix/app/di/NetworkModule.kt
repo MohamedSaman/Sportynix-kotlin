@@ -163,4 +163,10 @@ object NetworkModule {
     fun provideSearchApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.SearchApiService {
         return retrofit.create(com.sportynix.app.data.remote.api.SearchApiService::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun providePlayerStatsApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.PlayerStatsApiService {
+        return retrofit.create(com.sportynix.app.data.remote.api.PlayerStatsApiService::class.java)
+    }
 }

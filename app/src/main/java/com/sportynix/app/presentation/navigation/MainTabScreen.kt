@@ -67,8 +67,8 @@ fun MainTabScreen(
             when (tab) {
                 TabItem.LEAGUE -> {
                     LeagueListScreen(
-                        onNavigateBack = { viewModel.selectTab(TabItem.HOME) },
-                        onNavigateToLeagueDetail = { }
+                        onNavigateToDetail = { onNavigateToLeagues() },
+                        onNavigateToCreate = { }
                     )
                 }
                 TabItem.BOOKING -> {

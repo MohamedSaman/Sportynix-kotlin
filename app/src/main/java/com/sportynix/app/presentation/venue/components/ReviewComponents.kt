@@ -69,8 +69,8 @@ fun ReviewCard(
     val cardBg = if (isDark) Color(0xFF1E262C) else Color.White
     val borderClr = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
 
-    val isCurrentUser = remember(review.user, currentUserId) {
-        val uStr = review.user?.toString() ?: ""
+    val isCurrentUser = remember(review.userName, currentUserId) {
+        val uStr = review.userName ?: ""
         uStr.isNotEmpty() && currentUserId != null && (uStr == currentUserId || uStr.contains(currentUserId))
     }
 
@@ -92,9 +92,10 @@ fun ReviewCard(
             verticalAlignment = Alignment.Top
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (!review.userAvatarSecure.isNullOrEmpty()) {
+                val avatarUrl = review.userAvatarSecure ?: review.userAvatar
+                if (!avatarUrl.isNullOrEmpty()) {
                     AsyncImage(
-                        model = review.userAvatarSecure,
+                        model = avatarUrl,
                         contentDescription = null,
                         modifier = Modifier
                             .size(40.dp)
@@ -135,7 +136,7 @@ fun ReviewCard(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 // Stars
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    val r = review.rating ?: 5f
+                    val r = review.rating
                     for (i in 1..5) {
                         Icon(
                             imageVector = if (i <= r) Icons.Default.Star else Icons.Default.StarBorder,
@@ -338,8 +339,8 @@ fun WriteReviewBottomSheet(
 
     var rating by remember { mutableDoubleStateOf(existingReview?.rating?.toDouble() ?: 0.0) }
     var reviewText by remember { mutableStateOf(existingReview?.comment ?: "") }
-    var selectedStandOutTags by remember { mutableStateOf((existingReview?.categories ?: emptyList()).toSet()) }
-    var selectedCategoryTags by remember { mutableStateOf(setOf<String>()) }
+    var selectedStandOutTags by remember { mutableStateOf<Set<String>>((existingReview?.categories ?: emptyList()).toSet()) }
+    var selectedCategoryTags by remember { mutableStateOf<Set<String>>(setOf()) }
     var recommends by remember { mutableStateOf(existingReview?.wouldRecommend ?: existingReview?.recommends ?: true) }
 
     val initialPhotos = remember(existingReview) {
@@ -347,7 +348,7 @@ fun WriteReviewBottomSheet(
             ReviewPhotoItem(backendPhotoId = p.id, remoteUrl = p.imageUrlSecure ?: p.image)
         } ?: emptyList()
     }
-    var photos by remember { mutableStateOf(initialPhotos) }
+    var photos by remember { mutableStateOf<List<ReviewPhotoItem>>(initialPhotos) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -359,7 +360,7 @@ fun WriteReviewBottomSheet(
                 try {
                     val inputStream = context.contentResolver.openInputStream(uri)
                     val bitmap = BitmapFactory.decodeStream(inputStream)
-                    val file = File(context.cacheBufferDir(), "review_img_${System.currentTimeMillis()}_${UUID.randomUUID()}.jpg")
+                    val file = File(context.cacheDir, "review_img_${System.currentTimeMillis()}_${UUID.randomUUID()}.jpg")
                     val out = FileOutputStream(file)
                     bitmap?.compress(Bitmap.CompressFormat.JPEG, 75, out)
                     out.flush()
@@ -463,7 +464,7 @@ fun WriteReviewBottomSheet(
                                 .background(if (isSelected) primaryGreen.copy(alpha = 0.12f) else Color.Transparent)
                                 .border(if (isSelected) 1.5.dp else 1.dp, if (isSelected) primaryGreen else borderClr, RoundedCornerShape(12.dp))
                                 .clickable {
-                                    selectedStandOutTags = if (isSelected) selectedStandOutTags - tag else selectedStandOutTags + tag
+                                    selectedStandOutTags = if (isSelected) selectedStandOutTags.minus(tag) else selectedStandOutTags.plus(tag)
                                 }
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -495,7 +496,7 @@ fun WriteReviewBottomSheet(
                                 .background(if (isSelected) primaryGreen.copy(alpha = 0.12f) else Color.Transparent)
                                 .border(if (isSelected) 1.5.dp else 1.dp, if (isSelected) primaryGreen else borderClr, RoundedCornerShape(12.dp))
                                 .clickable {
-                                    selectedCategoryTags = if (isSelected) selectedCategoryTags - tag else selectedCategoryTags + tag
+                                    selectedCategoryTags = if (isSelected) selectedCategoryTags.minus(tag) else selectedCategoryTags.plus(tag)
                                 }
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,

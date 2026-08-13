@@ -99,14 +99,51 @@ sealed class Screen(val route: String) {
     object ReportedUsers : Screen("reported_users")
     object HelpSupport : Screen("help_support")
     object AboutUs : Screen("about_us")
-    object PlayerProfile : Screen("player_profile")
+
     object LeagueList : Screen("league_list")
     object LeagueDetail : Screen("league_detail/{leagueId}") {
         fun createRoute(leagueId: String) = "league_detail/$leagueId"
     }
+    object LeagueCreate : Screen("league_create?leagueId={leagueId}") {
+        fun createRoute(leagueId: String? = null) = if (leagueId != null) "league_create?leagueId=$leagueId" else "league_create"
+    }
+    object LeagueTeamDetail : Screen("league_team_detail/{leagueId}/{teamId}") {
+        fun createRoute(leagueId: String, teamId: String) = "league_team_detail/$leagueId/$teamId"
+    }
+    object LeagueApplications : Screen("league_applications/{leagueId}") {
+        fun createRoute(leagueId: String) = "league_applications/$leagueId"
+    }
     object TournamentList : Screen("tournament_list")
     object TournamentDetail : Screen("tournament_detail/{tournamentId}") {
         fun createRoute(tournamentId: String) = "tournament_detail/$tournamentId"
+    }
+
+    object PlayerProfile : Screen("player_profile/{playerId}?name={name}&role={role}&batting={batting}&bowling={bowling}&image={image}") {
+        fun createRoute(
+            playerId: String,
+            name: String? = null,
+            role: String? = null,
+            batting: String? = null,
+            bowling: String? = null,
+            image: String? = null
+        ): String {
+            val q = mutableListOf<String>()
+            name?.let { q += "name=${android.net.Uri.encode(it)}" }
+            role?.let { q += "role=${android.net.Uri.encode(it)}" }
+            batting?.let { q += "batting=${android.net.Uri.encode(it)}" }
+            bowling?.let { q += "bowling=${android.net.Uri.encode(it)}" }
+            image?.let { q += "image=${android.net.Uri.encode(it)}" }
+            return "player_profile/$playerId" + if (q.isNotEmpty()) "?${q.joinToString("&")}" else ""
+        }
+    }
+    object MatchDetails : Screen("match_details/{matchId}") {
+        fun createRoute(matchId: String) = "match_details/$matchId"
+    }
+    object CricketLiveView : Screen("cricket_live_view/{matchId}") {
+        fun createRoute(matchId: String) = "cricket_live_view/$matchId"
+    }
+    object MatchScoringHub : Screen("match_scoring_hub/{matchId}") {
+        fun createRoute(matchId: String) = "match_scoring_hub/$matchId"
     }
     object LiveCricketScoring : Screen("live_cricket_scoring/{matchId}") {
         fun createRoute(matchId: String) = "live_cricket_scoring/$matchId"

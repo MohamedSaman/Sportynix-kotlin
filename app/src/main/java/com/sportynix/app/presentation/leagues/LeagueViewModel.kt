@@ -3,10 +3,10 @@ package com.sportynix.app.presentation.leagues
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
-import com.sportynix.app.data.remote.dto.FixtureDto
-import com.sportynix.app.data.remote.dto.LeagueDto
-import com.sportynix.app.data.remote.dto.StandingDto
+import com.sportynix.app.data.remote.dto.FullLeagueDto
+import com.sportynix.app.data.remote.websocket.LiveMatchWebSocketManager
 import com.sportynix.app.data.repository.LeagueRepository
+import com.sportynix.app.domain.model.LiveMatchSnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,63 +14,103 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class LeagueUiState(
+data class LeagueListUiState(
     val isLoading: Boolean = false,
-    val leagues: List<LeagueDto> = emptyList(),
-    val selectedLeague: LeagueDto? = null,
-    val fixtures: List<FixtureDto> = emptyList(),
-    val standings: List<StandingDto> = emptyList(),
-    val error: String? = null
+    val isRefreshing: Boolean = false,
+    val leagues: List<FullLeagueDto> = emptyList(),
+    val error: String? = null,
+    val searchQuery: String = "",
+    val selectedSport: String = "all", // all, cricket, football, volleyball, etc.
+    val selectedStatus: String = "all", // all, upcoming, in_progress, completed, registration
+    val selectedCricketVariant: String = "all", // all, softball, hardball
+    val liveMatches: List<LiveMatchSnapshot> = emptyList()
 )
 
 @HiltViewModel
 class LeagueViewModel @Inject constructor(
-    private val repository: LeagueRepository
+    private val leagueRepository: LeagueRepository,
+    private val liveMatchWebSocketManager: LiveMatchWebSocketManager
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(LeagueUiState())
-    val uiState: StateFlow<LeagueUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(LeagueListUiState())
+    val uiState: StateFlow<LeagueListUiState> = _uiState.asStateFlow()
 
     init {
         loadLeagues()
+        observeLiveMatches()
     }
 
-    fun loadLeagues(search: String? = null) {
+    private fun observeLiveMatches() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            when (val result = repository.getLeagues(search)) {
+            liveMatchWebSocketManager.connect()
+            liveMatchWebSocketManager.matchesState.collect { matches ->
+                _uiState.value = _uiState.value.copy(liveMatches = matches)
+            }
+        }
+    }
+
+    fun loadLeagues(isRefresh: Boolean = false) {
+        viewModelScope.launch {
+            if (isRefresh) {
+                _uiState.value = _uiState.value.copy(isRefreshing = true, error = null)
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            }
+
+            val sportFilter = if (_uiState.value.selectedSport == "all") null else _uiState.value.selectedSport
+            val statusFilter = if (_uiState.value.selectedStatus == "all") null else _uiState.value.selectedStatus
+            val queryFilter = if (_uiState.value.searchQuery.isBlank()) null else _uiState.value.searchQuery
+
+            when (val result = leagueRepository.getLeagues(
+                search = queryFilter,
+                sportType = sportFilter,
+                status = statusFilter
+            )) {
                 is ApiResult.Success -> {
+                    var filtered = result.data
+                    if (_uiState.value.selectedCricketVariant != "all") {
+                        val variantKey = _uiState.value.selectedCricketVariant.lowercase()
+                        filtered = filtered.filter { league ->
+                            val v = (league.cricketVariant ?: "").lowercase()
+                            v.contains(variantKey)
+                        }
+                    }
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        leagues = result.data
+                        isRefreshing = false,
+                        leagues = filtered,
+                        error = null
                     )
                 }
                 is ApiResult.Error -> {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = result.message
+                        isRefreshing = false,
+                        error = result.message ?: "Failed to load leagues"
                     )
                 }
-                else -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
-                }
+                else -> {}
             }
         }
     }
 
-    fun loadLeagueDetails(leagueId: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val leagueResult = repository.getLeagueDetail(leagueId)
-            val fixturesResult = repository.getLeagueFixtures(leagueId)
-            val standingsResult = repository.getLeagueStandings(leagueId)
+    fun onSearchQueryChanged(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        loadLeagues()
+    }
 
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                selectedLeague = (leagueResult as? ApiResult.Success)?.data,
-                fixtures = (fixturesResult as? ApiResult.Success)?.data ?: emptyList(),
-                standings = (standingsResult as? ApiResult.Success)?.data ?: emptyList()
-            )
-        }
+    fun onSportSelected(sport: String) {
+        _uiState.value = _uiState.value.copy(selectedSport = sport)
+        loadLeagues()
+    }
+
+    fun onStatusSelected(status: String) {
+        _uiState.value = _uiState.value.copy(selectedStatus = status)
+        loadLeagues()
+    }
+
+    fun onCricketVariantSelected(variant: String) {
+        _uiState.value = _uiState.value.copy(selectedCricketVariant = variant)
+        loadLeagues()
     }
 }

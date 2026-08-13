@@ -1,37 +1,112 @@
 package com.sportynix.app.data.remote.api
 
-import com.sportynix.app.data.remote.dto.BallRecordRequestDto
-import com.sportynix.app.data.remote.dto.BallRecordResponseDto
-import com.sportynix.app.data.remote.dto.CricketMatchDto
-import com.sportynix.app.data.remote.dto.LiveScorecardDto
-import retrofit2.http.Body
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.Path
+import com.sportynix.app.data.remote.dto.*
+import retrofit2.http.*
 
 interface CricketScoringApiService {
 
-    @GET("api/cricket-scoring/matches/")
-    suspend fun getCricketMatches(): List<CricketMatchDto>
+    @POST("api/league/cricket-scoring/{matchId}/start/")
+    suspend fun startMatch(
+        @Path("matchId") matchId: String,
+        @Body request: StartMatchRequestDto
+    ): LiveStateDto
 
-    @GET("api/cricket-scoring/matches/{id}/live/")
-    suspend fun getLiveMatchDetails(
-        @Path("id") matchId: String
-    ): LiveScorecardDto
+    @POST("api/league/cricket-scoring/{matchId}/end/")
+    suspend fun endMatch(
+        @Path("matchId") matchId: String,
+        @Body request: EndMatchRequestDto
+    ): LiveStateDto
 
-    @GET("api/cricket-scoring/matches/{id}/scorecard/")
-    suspend fun getFullScorecard(
-        @Path("id") matchId: String
-    ): LiveScorecardDto
+    @POST("api/league/cricket-scoring/{matchId}/start-innings/")
+    suspend fun startInnings(
+        @Path("matchId") matchId: String,
+        @Body request: StartInningsRequestDto
+    ): LiveStateDto
 
-    @POST("api/cricket-scoring/matches/{id}/record-ball/")
+    @POST("api/league/cricket-scoring/{matchId}/end-innings/")
+    suspend fun endInnings(
+        @Path("matchId") matchId: String
+    ): LiveStateDto
+
+    @POST("api/league/cricket-scoring/{matchId}/set-batsmen/")
+    suspend fun setBatsmen(
+        @Path("matchId") matchId: String,
+        @Body request: SetBatsmenRequestDto
+    ): LiveStateDto
+
+    @POST("api/league/cricket-scoring/{matchId}/set-bowler/")
+    suspend fun setBowler(
+        @Path("matchId") matchId: String,
+        @Body request: SetBowlerRequestDto
+    ): LiveStateDto
+
+    @GET("api/league/cricket-scoring/{matchId}/playing-xi/")
+    suspend fun getPlayingXI(
+        @Path("matchId") matchId: String
+    ): PlayingXIResponseDto
+
+    @POST("api/league/cricket-scoring/{matchId}/playing-xi/")
+    suspend fun setPlayingXI(
+        @Path("matchId") matchId: String,
+        @Body request: PlayingXIRequestDto
+    ): PlayingXIResponseDto
+
+    @POST("api/league/cricket-scoring/{matchId}/record-ball/")
     suspend fun recordBall(
-        @Path("id") matchId: String,
-        @Body request: BallRecordRequestDto
-    ): BallRecordResponseDto
+        @Path("matchId") matchId: String,
+        @Body request: RecordBallRequestDto
+    ): LiveStateDto
 
-    @POST("api/cricket-scoring/matches/{id}/undo-ball/")
+    @POST("api/league/cricket-scoring/{matchId}/record-penalty/")
+    suspend fun recordPenalty(
+        @Path("matchId") matchId: String,
+        @Body request: RecordPenaltyRequestDto
+    ): LiveStateDto
+
+    @POST("api/league/cricket-scoring/{matchId}/swap-batsmen/")
+    suspend fun swapBatsmen(
+        @Path("matchId") matchId: String
+    ): LiveStateDto
+
+    @POST("api/league/cricket-scoring/{matchId}/undo-last-ball/")
     suspend fun undoLastBall(
-        @Path("id") matchId: String
-    ): BallRecordResponseDto
+        @Path("matchId") matchId: String
+    ): LiveStateDto
+
+    @GET("api/league/cricket-scoring/{matchId}/live-state/")
+    suspend fun getLiveState(
+        @Path("matchId") matchId: String
+    ): LiveStateDto
+
+    @GET("api/league/cricket-scoring/{matchId}/scorecard/")
+    suspend fun getScorecard(
+        @Path("matchId") matchId: String
+    ): ScorecardDto
+
+    @GET("api/league/cricket-scoring/{matchId}/eligible-batsmen/")
+    suspend fun getEligibleBatsmen(
+        @Path("matchId") matchId: String
+    ): EligibleBatsmenResponseDto
+
+    @GET("api/league/cricket-scoring/{matchId}/ball-by-ball/")
+    suspend fun getBallByBall(
+        @Path("matchId") matchId: String,
+        @Query("innings") innings: Int? = null
+    ): BallByBallResponseDto
+
+    @GET("api/league/cricket-scoring/{matchId}/summary/")
+    suspend fun getMatchSummary(
+        @Path("matchId") matchId: String
+    ): MatchSummaryDto
+
+    @GET("api/league/cricket-scoring/{matchId}/mom-suggestion/")
+    suspend fun getMOMSuggestion(
+        @Path("matchId") matchId: String
+    ): MOMSuggestionResponseDto
+
+    @POST("api/league/cricket-scoring/{matchId}/finalize-mom/")
+    suspend fun finalizeMOM(
+        @Path("matchId") matchId: String,
+        @Body request: FinalizeMOMRequestDto
+    ): LiveStateDto
 }

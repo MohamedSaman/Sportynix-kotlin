@@ -35,7 +35,7 @@ data class VenueEventItem(
     val logo: String? = null,
     val banner: String? = null,
     val isVenueHosted: Boolean = false,
-    val leaguePayload: LeagueDto? = null,
+    val leaguePayload: FullLeagueDto? = null,
     val tournamentPayload: TournamentDto? = null
 )
 
@@ -290,12 +290,12 @@ class VenueViewModel @Inject constructor(
                             id = l.id,
                             type = VenueEventType.LEAGUE,
                             name = l.name,
-                            sportType = l.sport,
+                            sportType = l.sportType,
                             startDate = l.startDate,
                             endDate = l.endDate,
                             status = l.status,
-                            logo = l.logoUrl,
-                            banner = l.bannerUrl,
+                            logo = l.logo,
+                            banner = l.banner,
                             isVenueHosted = false,
                             leaguePayload = l,
                             tournamentPayload = null
