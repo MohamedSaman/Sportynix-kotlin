@@ -81,4 +81,5 @@ interface ChatRepository {
     suspend fun getAllMediaMessages(chatId: Long, limit: Int = 0): Result<List<ChatMessage>>
 
     suspend fun syncQueuedOutbox(): Result<Unit>
+    suspend fun reconcileQueuedMediaAck(chatId: Long, tempMessageId: Long, serverMessage: ChatMessage): Result<Unit>
 }

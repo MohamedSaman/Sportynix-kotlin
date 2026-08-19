@@ -3,8 +3,9 @@ package com.sportynix.app.data.remote.websocket
 import com.google.gson.Gson
 import com.sportynix.app.BuildConfig
 import com.sportynix.app.core.network.NetworkConnectivityObserver
-import com.sportynix.app.domain.model.websocket.NewMessageNotification
-import com.sportynix.app.domain.model.websocket.WebSocketMessage
+import com.sportynix.app.core.network.NetworkStatus
+import com.sportynix.app.domain.model.NewMessageNotification
+import com.sportynix.app.domain.model.WebSocketMessage
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import okhttp3.*
@@ -70,8 +71,8 @@ class ChatWebSocketService @Inject constructor(
 
     init {
         scope.launch {
-            connectivityObserver.observe().collect { status ->
-                isOnline = (status == NetworkConnectivityObserver.Status.Available)
+            connectivityObserver.networkStatus.collect { status ->
+                isOnline = (status == NetworkStatus.Available)
                 if (isOnline) {
                     if (chatId != null && token != null && chatSocket == null && !isConnecting) {
                         connect(chatId!!, token!!)
@@ -136,8 +137,8 @@ class ChatWebSocketService @Inject constructor(
                     val message = gson.fromJson(text, WebSocketMessage::class.java)
                     scope.launch {
                         _messages.emit(message.copy(
-                            conversationId = message.conversationId ?: chatId,
-                            chatId = message.chatId ?: chatId
+                            conversationId = message.conversationId ?: chatId?.toLong(),
+                            chatId = message.chatId ?: chatId?.toLong()
                         ))
                     }
                 } catch (e: Exception) {

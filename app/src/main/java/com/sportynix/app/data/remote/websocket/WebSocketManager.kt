@@ -142,8 +142,9 @@ class WebSocketManager @Inject constructor(
                         _unreadCountsState.value = messagesCount to notificationsCount
                     }
 
-                    if (type == "new_message" || type == "chat_message_notification") {
-                        val notif = gson.fromJson(text, NewMessageNotification::class.java)
+                    if (type == "new_message" || type == "chat_message_notification" || (type == "counts_update" && map.containsKey("message_id"))) {
+                        val payload = (map["data"] as? Map<*, *>)?.let { gson.toJson(it) } ?: text
+                        val notif = gson.fromJson(payload, NewMessageNotification::class.java)
                         scope.launch {
                             _newNotificationFlow.emit(notif)
                         }
@@ -169,9 +170,9 @@ class WebSocketManager @Inject constructor(
         })
     }
 
-    fun sendMessage(msgMap: Map<String, Any?>) {
+    fun sendMessage(msgMap: Map<String, Any?>): Boolean {
         val json = gson.toJson(msgMap)
-        chatWebSocket?.send(json)
+        return chatWebSocket?.send(json) == true
     }
 
     fun sendTyping(isTyping: Boolean) {

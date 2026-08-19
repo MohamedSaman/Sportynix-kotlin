@@ -1,6 +1,8 @@
 package com.sportynix.app.presentation.messages
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
+import com.sportynix.app.BuildConfig
 import com.sportynix.app.domain.model.Chat
 import com.sportynix.app.domain.model.ChatRequestItem
 import com.sportynix.app.presentation.messages.components.GlassBadge
@@ -53,7 +59,7 @@ fun MessagesListScreen(
                     IconButton(onClick = onNavigateBack) { Icon(Icons.Default.ArrowBack, "Back", tint = LiquidGlassTheme.PrimaryGreen) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = LiquidGlassTheme.cardBackground()
+                    containerColor = Color.Transparent
                 )
             )
         },
@@ -62,6 +68,21 @@ fun MessagesListScreen(
         PremiumMessagesBackground {
         Box(Modifier.fillMaxSize().padding(innerPadding)) {
         Column(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = !uiState.isOnline,
+                enter = fadeIn(tween(180)) + expandVertically(),
+                exit = fadeOut(tween(180)) + shrinkVertically()
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().background(Color(0xFFE38B20)).padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.WifiOff, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Offline mode · showing cached chats", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
             // Main Tab Bar: My Chats vs Discover
             Row(
                 modifier = Modifier
@@ -74,11 +95,12 @@ fun MessagesListScreen(
             ) {
                 listOf("my_chats" to "My Chats", "discover" to "Discover").forEach { (tabId, label) ->
                     val selected = uiState.activeTab == tabId
+                    val tabColor by animateColorAsState(if (selected) LiquidGlassTheme.PrimaryGreen else Color.Transparent, tween(240), label = "mainTab")
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (selected) LiquidGlassTheme.PrimaryGreen else Color.Transparent)
+                            .background(tabColor)
                             .clickable { viewModel.setActiveTab(tabId) }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
@@ -210,14 +232,11 @@ fun MessagesListScreen(
                         }
                     } else {
                         LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             items(filteredList, key = { it.id }) { chat ->
-                                ConversationCard(
-                                    chat = chat,
-                                    onClick = { onNavigateToChat(chat.id) }
-                                )
+                                ConversationCard(chat = chat, onClick = { onNavigateToChat(chat.id) })
                             }
                         }
                     }
@@ -258,12 +277,17 @@ fun MessagesListScreen(
         }
         FloatingActionButton(
             onClick = onNavigateToNewChat,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(22.dp),
-            containerColor = LiquidGlassTheme.PrimaryGreen,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(22.dp).shadow(16.dp, CircleShape, ambientColor = LiquidGlassTheme.PrimaryGreen.copy(alpha = .38f), spotColor = LiquidGlassTheme.PrimaryGreen.copy(alpha = .5f)),
+            containerColor = LiquidGlassTheme.PrimaryGreen.copy(alpha = .96f),
             contentColor = Color.White,
             shape = CircleShape
         ) { Icon(Icons.Default.Add, "New chat", Modifier.size(30.dp)) }
-        uiState.errorMessage?.let { Snackbar(Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 90.dp)) { Text(it) } }
+        uiState.errorMessage?.let {
+            Snackbar(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 90.dp),
+                action = { TextButton(onClick = viewModel::clearError) { Text("Dismiss") } }
+            ) { Text(it) }
+        }
         }
         }
     }
@@ -275,7 +299,7 @@ fun ConversationCard(
     onClick: () -> Unit
 ) {
     val title = chat.displayName ?: chat.otherUserName ?: chat.teamName ?: chat.name ?: "Chat"
-    val avatarUrl = chat.otherUserAvatar ?: chat.teamLogo
+    val avatarUrl = resolveMediaUrl(if (chat.chatType == "direct") chat.otherUserAvatar else (chat.teamLogo ?: chat.otherUserAvatar))
     val lastMsgText = when (val lm = chat.lastMessage) {
         null -> chat.lastMessageText ?: ""
         else -> when (lm.messageType) {
@@ -287,57 +311,66 @@ fun ConversationCard(
         }
     }
 
-    GlassCard(onClick = onClick) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 2.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
             Box {
                 if (!avatarUrl.isNullOrEmpty()) {
-                    AsyncImage(
+                    SubcomposeAsyncImage(
                         model = avatarUrl,
-                        contentDescription = null,
+                        contentDescription = title,
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(44.dp)
                             .clip(CircleShape),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        loading = { CompactAvatarFallback(title) },
+                        error = { CompactAvatarFallback(title) },
+                        success = { SubcomposeAsyncImageContent() }
                     )
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(LiquidGlassTheme.PrimaryGreen),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = title.take(1).uppercase(),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
-                        )
-                    }
+                    CompactAvatarFallback(title)
                 }
 
                 if (chat.unreadCount > 0) {
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(17.dp)
                             .clip(CircleShape)
                             .background(LiquidGlassTheme.PrimaryGreen)
-                            .align(Alignment.TopEnd),
+                            .align(Alignment.BottomEnd)
+                            .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (chat.unreadCount > 99) "99+" else chat.unreadCount.toString(),
                             color = Color.White,
-                            fontSize = 10.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier.size(16.dp).align(Alignment.BottomEnd).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.5.dp, MaterialTheme.colorScheme.background, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = when (chat.chatType) {
+                                "team_group" -> Icons.Default.Groups
+                                "team_channel" -> Icons.Default.Tag
+                                else -> Icons.Default.Person
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(10.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -348,29 +381,38 @@ fun ConversationCard(
                     Text(
                         text = title,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = chat.lastMessageTime?.take(10) ?: "",
-                        fontSize = 11.sp,
+                        text = formatConversationTime(chat.lastMessageTime),
+                        fontSize = 10.sp,
                         color = Color.Gray
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
                     text = lastMsgText,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
+    }
+}
+
+@Composable
+private fun CompactAvatarFallback(title: String) {
+    Box(
+        modifier = Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .72f), modifier = Modifier.size(25.dp))
     }
 }
 
@@ -402,30 +444,23 @@ fun ChatRequestItemCard(
     onCancel: () -> Unit
 ) {
     val targetUser = if (isReceived) item.fromUser else item.toUser
-    GlassCard {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(LiquidGlassTheme.PrimaryGreen),
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(enabled = false) { }.padding(horizontal = 4.dp, vertical = 8.dp)
+    ) {
+            val requestAvatar = resolveMediaUrl(targetUser.profilePicture)
+            if (requestAvatar != null) {
+                AsyncImage(requestAvatar, targetUser.fullName, Modifier.size(50.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+            } else Box(
+                modifier = Modifier.size(50.dp).clip(CircleShape).background(LiquidGlassTheme.PrimaryGreen.copy(alpha = .14f)),
                 contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = targetUser.fullName.take(1).uppercase(),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            ) { Text(targetUser.fullName.take(1).uppercase(), color = LiquidGlassTheme.PrimaryGreen, fontWeight = FontWeight.Bold) }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(targetUser.fullName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("@${targetUser.username}", fontSize = 12.sp, color = Color.Gray)
+                Text(if (isReceived) "Pending Request" else "Request Sent", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (isReceived) {
@@ -448,11 +483,31 @@ fun ChatRequestItemCard(
                     onClick = onCancel,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Text("Cancel", fontSize = 12.sp, color = Color.Gray)
+                    Text("Cancel", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                 }
             }
-        }
     }
+}
+
+private fun formatConversationTime(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    return runCatching {
+        val normalized = raw.replace("Z", "+00:00")
+        val instant = java.time.OffsetDateTime.parse(normalized).toInstant()
+        val date = instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        val today = java.time.LocalDate.now()
+        when {
+            date == today -> java.time.format.DateTimeFormatter.ofPattern("h:mm a").format(instant.atZone(java.time.ZoneId.systemDefault()))
+            date.isAfter(today.minusDays(7)) -> java.time.format.DateTimeFormatter.ofPattern("EEE").format(date)
+            else -> java.time.format.DateTimeFormatter.ofPattern("MMM d").format(date)
+        }
+    }.getOrElse { raw.take(10) }
+}
+
+private fun resolveMediaUrl(raw: String?): String? {
+    if (raw.isNullOrBlank()) return null
+    if (raw.startsWith("http://") || raw.startsWith("https://")) return raw
+    return BuildConfig.BASE_URL.trimEnd('/') + "/" + raw.trimStart('/')
 }
 
 @Composable

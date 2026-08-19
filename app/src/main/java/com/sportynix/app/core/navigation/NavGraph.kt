@@ -848,7 +848,9 @@ fun NavGraph(
                     navController.navigate(Screen.MediaGallery.createRoute(cId.toString()))
                 },
                 onNavigateToChat = { cId -> navController.navigate(Screen.Chat.createRoute(cId.toString())) },
-                onNavigateToBookingDetail = { bookingId -> navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString())) }
+                onNavigateToBookingDetail = { bookingId -> navController.navigate(Screen.BookingDetail.createRoute(bookingId.toString())) },
+                onNavigateToBookingCancellation = { bookingId -> navController.navigate(Screen.BookingCancellationReview.createRoute(bookingId.toString())) },
+                onNavigateToTeam = { teamId -> navController.navigate(Screen.TeamLink.createRoute(teamId = teamId.toInt())) }
                 ,onBookMatch = { venueId, sportId, sourceChatId -> navController.navigate(Screen.Booking.createRoute(venueId.toString(), sportId.toString(), sourceChatId)) }
             )
         }

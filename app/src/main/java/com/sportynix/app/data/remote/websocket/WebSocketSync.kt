@@ -2,7 +2,7 @@ package com.sportynix.app.data.remote.websocket
 
 import com.sportynix.app.data.local.dao.ChatDao
 import com.sportynix.app.data.local.entity.ChatMessageEntity
-import com.sportynix.app.domain.model.websocket.WebSocketMessage
+import com.sportynix.app.domain.model.WebSocketMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -16,29 +16,33 @@ class WebSocketSync @Inject constructor(
     suspend fun handleWebSocketChatMessage(event: WebSocketMessage) = withContext(Dispatchers.IO) {
         try {
             val entity = ChatMessageEntity(
-                id = event.message_id?.toLong() ?: System.currentTimeMillis(),
-                chatId = event.chat_id?.toLong() ?: event.conversation_id?.toLong() ?: 0L,
-                senderId = event.sender_id?.toLong() ?: 0L,
-                senderName = event.sender_name ?: "Unknown",
-                senderAvatar = event.sender_avatar,
+                id = event.messageId?.toLong() ?: System.currentTimeMillis(),
+                chatId = event.chatId?.toLong() ?: event.conversationId?.toLong() ?: 0L,
+                senderId = event.senderId?.toLong() ?: 0L,
+                senderName = event.senderName ?: "Unknown",
+                senderAvatar = event.senderAvatar,
                 message = event.message ?: "",
-                messageType = event.message_type ?: "text",
+                messageType = event.messageType ?: "text",
                 timestamp = event.timestamp ?: "",
                 createdAt = event.timestamp ?: "",
                 isRead = false,
                 isDeleted = false,
                 delivered = true,
-                isPinned = event.is_pinned ?: false,
-                pinnedBy = event.pinned_by?.toLong(),
-                pinnedAt = event.pinned_at,
+                isPinned = event.isPinned ?: false,
+                pinnedBy = event.pinnedBy?.toLong(),
+                pinnedAt = event.pinnedAt,
                 duration = event.duration,
                 metadataJson = null, // event.metadata is Record<String, Any>, would need Gson to serialize
-                bookingId = event.booking_id?.toLong() ?: event.booking?.toLong(),
-                fileUrl = event.file_url,
-                mediaExpiresAt = event.media_expires_at,
+                bookingId = event.bookingId ?: when (val booking = event.booking) {
+                    is Number -> booking.toLong()
+                    is String -> booking.toLongOrNull()
+                    else -> null
+                },
+                fileUrl = event.fileUrl,
+                mediaExpiresAt = event.mediaExpiresAt,
                 localMediaPath = null,
                 queued = false,
-                clientMsgId = event.local_id?.toString()
+                clientMsgId = event.localId?.toString()
             )
             
             chatDao.upsertMessage(entity)

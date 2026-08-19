@@ -91,7 +91,7 @@ class ConnectivityService @Inject constructor(
     private suspend fun performHealthCheck(): Boolean {
         return try {
             val request = Request.Builder()
-                .url("\${BuildConfig.BASE_URL.trimEnd('/')}/health/")
+                .url("${BuildConfig.BASE_URL.trimEnd('/')}/health/")
                 .build()
                 
             val response = okHttpClient.newCall(request).execute()

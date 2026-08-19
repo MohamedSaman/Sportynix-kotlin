@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import javax.inject.Inject
 
 data class ChatUiState(
@@ -59,6 +63,10 @@ class ChatViewModel @Inject constructor(
     private var voiceTimerJob: Job? = null
     private var currentVoiceFile: File? = null
     private var typingStopJob: Job? = null
+    private var typingStartedSent = false
+    private var messagesCollectionJob: Job? = null
+    private var messageSyncJob: Job? = null
+    private var realtimeRefreshJob: Job? = null
 
     init {
         if (chatId > 0) {
@@ -85,6 +93,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             webSocketManager.isChatWsConnected.collect { connected ->
                 _uiState.update { it.copy(isRealtimeConnected = connected) }
+                if (connected) chatRepository.syncQueuedOutbox()
             }
         }
     }
@@ -105,29 +114,44 @@ class ChatViewModel @Inject constructor(
     }
 
     fun loadMessages() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            chatRepository.fetchMessagesFromServer(chatId, 50).onSuccess { msgs ->
-                _uiState.update { it.copy(messages = msgs, isLoading = false) }
-            }.onFailure {
-                _uiState.update { it.copy(isLoading = false) }
-            }
+        messagesCollectionJob?.cancel()
+        messageSyncJob?.cancel()
 
-            chatRepository.getMessagesWithSync(chatId, 50).collect { list ->
-                _uiState.update { it.copy(messages = list) }
+        // Match the reference client: paint the local timeline immediately, then merge
+        // the server snapshot into Room in the background. The UI observes one source
+        // of truth, so a network response cannot replace the list and make rows blink.
+        _uiState.update { it.copy(isLoading = it.messages.isEmpty()) }
+        messagesCollectionJob = viewModelScope.launch {
+            chatRepository.getMessagesWithSync(chatId, 200).collect { list ->
+                _uiState.update {
+                    it.copy(messages = stabilizeTimeline(list), isLoading = false)
+                }
+            }
+        }
+        messageSyncJob = viewModelScope.launch {
+            chatRepository.fetchMessagesFromServer(chatId, 200).onFailure { error ->
+                Timber.w(error, "Unable to refresh chat %s; retaining cached timeline", chatId)
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
 
     fun onTextChanged(text: String) {
         _uiState.update { it.copy(textInput = text) }
-        webSocketManager.sendTyping(text.isNotEmpty())
         typingStopJob?.cancel()
         if (text.isNotEmpty()) {
+            if (!typingStartedSent) {
+                webSocketManager.sendTyping(true)
+                typingStartedSent = true
+            }
             typingStopJob = viewModelScope.launch {
                 delay(1800)
                 webSocketManager.sendTyping(false)
+                typingStartedSent = false
             }
+        } else if (typingStartedSent) {
+            webSocketManager.sendTyping(false)
+            typingStartedSent = false
         }
     }
 
@@ -168,15 +192,17 @@ class ChatViewModel @Inject constructor(
     }
 
     fun startVoiceRecording() {
-        if (_uiState.value.isBlocked) return
+        if (_uiState.value.isBlocked || _uiState.value.chatDetails?.canPost == false || _uiState.value.isRecordingVoice) return
         try {
-            val file = File(context.cacheDir, "voice_${System.currentTimeMillis()}.mp3")
+            val file = File(context.cacheDir, "voice_${System.currentTimeMillis()}.m4a")
             currentVoiceFile = file
 
             mediaRecorder = MediaRecorder().apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioSamplingRate(44_100)
+                setAudioEncodingBitRate(128_000)
                 setOutputFile(file.absolutePath)
                 prepare()
                 start()
@@ -210,13 +236,15 @@ class ChatViewModel @Inject constructor(
 
             if (file != null && file.exists() && duration > 0) {
                 viewModelScope.launch {
-                    chatRepository.queueMediaMessage(
+                    val queued = chatRepository.queueMediaMessage(
                         chatId = chatId,
                         mediaType = "voice",
                         localMediaPath = file.absolutePath,
                         caption = "",
                         duration = duration
                     )
+                    queued.onSuccess { chatRepository.syncQueuedOutbox() }
+                        .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message ?: "Unable to send voice message") } }
                 }
             }
         } catch (e: Exception) {
@@ -241,8 +269,18 @@ class ChatViewModel @Inject constructor(
                     _uiState.update { it.copy(errorMessage = error.message ?: "Unable to queue image") }
                 }
             }
+            chatRepository.syncQueuedOutbox()
             _uiState.update { it.copy(isSendingMedia = false) }
         }
+    }
+
+    suspend fun resolveVoiceSource(message: ChatMessage): String? {
+        message.localMediaPath?.removePrefix("file://")?.let { local -> if (File(local).exists()) return local }
+        if (message.id <= 0 || message.fileUrl.isNullOrBlank()) return null
+        val destination = File(context.filesDir, "chat_media/$chatId/voice_${message.id}.m4a")
+        return chatRepository.downloadMedia(chatId, message.id, destination)
+            .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message ?: "Unable to download voice note") } }
+            .getOrNull()?.absolutePath
     }
 
     fun cancelVoiceRecording() {
@@ -276,13 +314,17 @@ class ChatViewModel @Inject constructor(
 
     fun pinMessage(messageId: Long) {
         viewModelScope.launch {
-            chatRepository.pinMessage(chatId, messageId)
+            chatRepository.pinMessage(chatId, messageId).onFailure { error ->
+                _uiState.update { it.copy(errorMessage = error.message ?: "Unable to pin message") }
+            }
         }
     }
 
     fun unpinMessage(messageId: Long) {
         viewModelScope.launch {
-            chatRepository.unpinMessage(chatId, messageId)
+            chatRepository.unpinMessage(chatId, messageId).onFailure { error ->
+                _uiState.update { it.copy(errorMessage = error.message ?: "Unable to unpin message") }
+            }
         }
     }
 
@@ -295,7 +337,9 @@ class ChatViewModel @Inject constructor(
                     "typing", "typing_indicator" -> {
                         val isMine = wsMsg.senderId == _uiState.value.currentUserId
                         _uiState.update {
-                            it.copy(typingUserName = if (wsMsg.isTyping == true && !isMine) wsMsg.senderName ?: "Someone" else null)
+                            val realName = wsMsg.senderName?.takeIf { name -> name.isNotBlank() }
+                                ?: it.chatDetails?.otherUserName?.takeIf { name -> name.isNotBlank() }
+                            it.copy(typingUserName = if (wsMsg.isTyping == true && !isMine) realName else null)
                         }
                     }
                     "user_joined" -> if (wsMsg.userId == _uiState.value.chatDetails?.otherUserId) {
@@ -311,6 +355,7 @@ class ChatViewModel @Inject constructor(
                         )
                     }
                     "message", "new_message", "chat_message" -> {
+                        upsertRealtimeMessage(wsMsg)
                         wsMsg.messageId?.let { messageId ->
                             if (wsMsg.senderId != _uiState.value.currentUserId) {
                                 webSocketManager.sendDeliveredAck(messageId)
@@ -329,15 +374,105 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun refreshMessages() {
-        viewModelScope.launch {
+        realtimeRefreshJob?.cancel()
+        realtimeRefreshJob = viewModelScope.launch {
+            // Several websocket state frames often arrive for one message. Coalesce
+            // them into one server merge while the optimistic row stays visible.
+            delay(180)
             chatRepository.fetchMessagesFromServer(chatId, 50)
         }
+    }
+
+    private fun upsertRealtimeMessage(wsMsg: com.sportynix.app.domain.model.WebSocketMessage) {
+        val serverId = wsMsg.messageId ?: return
+        val timestamp = wsMsg.timestamp.orEmpty()
+        val incoming = ChatMessage(
+            id = serverId,
+            chat = wsMsg.chatId ?: wsMsg.conversationId ?: chatId,
+            sender = wsMsg.senderId ?: 0L,
+            senderName = wsMsg.senderName ?: wsMsg.sender ?: "Unknown",
+            senderAvatar = wsMsg.senderAvatar,
+            message = wsMsg.message.orEmpty(),
+            messageType = wsMsg.messageType ?: "text",
+            timestamp = timestamp,
+            createdAt = timestamp,
+            delivered = wsMsg.delivered ?: false,
+            isPinned = wsMsg.isPinned ?: false,
+            pinnedBy = wsMsg.pinnedBy,
+            pinnedAt = wsMsg.pinnedAt,
+            duration = wsMsg.duration,
+            metadata = wsMsg.metadata,
+            bookingId = wsMsg.bookingId,
+            fileUrl = wsMsg.fileUrl,
+            mediaExpiresAt = wsMsg.mediaExpiresAt
+        )
+        _uiState.update { state ->
+            val pending = wsMsg.localId?.let { localId -> state.messages.firstOrNull { it.id == localId } }
+            val reconciledIncoming = incoming.copy(
+                localMediaPath = incoming.localMediaPath ?: pending?.localMediaPath,
+                clientMsgId = incoming.clientMsgId ?: pending?.clientMsgId,
+                queued = false
+            )
+            val withoutDuplicate = state.messages.filterNot { message ->
+                message.id == serverId || (wsMsg.localId != null && message.id == wsMsg.localId)
+            }
+            state.copy(messages = stabilizeTimeline(withoutDuplicate + reconciledIncoming))
+        }
+        wsMsg.localId?.let { tempId ->
+            viewModelScope.launch {
+                val reconciled = _uiState.value.messages.firstOrNull { it.id == serverId } ?: incoming
+                chatRepository.reconcileQueuedMediaAck(chatId, tempId, reconciled)
+            }
+        }
+    }
+
+    /**
+     * Produces a stable, chronological timeline across cached, pending, REST and
+     * websocket copies. Server messages win over their temporary outbox copy while
+     * retaining the local media path until upload/download reconciliation finishes.
+     */
+    private fun stabilizeTimeline(source: List<ChatMessage>): List<ChatMessage> {
+        val byIdentity = LinkedHashMap<String, ChatMessage>()
+        source.forEach { candidate ->
+            val identity = candidate.clientMsgId?.takeIf(String::isNotBlank)?.let { "client:$it" }
+                ?: "id:${candidate.id}"
+            val current = byIdentity[identity]
+            byIdentity[identity] = when {
+                current == null -> candidate
+                current.id < 0 && candidate.id > 0 -> candidate.copy(
+                    localMediaPath = candidate.localMediaPath ?: current.localMediaPath
+                )
+                candidate.id < 0 && current.id > 0 -> current.copy(
+                    localMediaPath = current.localMediaPath ?: candidate.localMediaPath
+                )
+                messageEpochMillis(candidate) >= messageEpochMillis(current) -> candidate
+                else -> current
+            }
+        }
+        return byIdentity.values.sortedWith(
+            compareBy<ChatMessage> { messageEpochMillis(it) }
+                .thenBy { it.id }
+        )
+    }
+
+    private fun messageEpochMillis(message: ChatMessage): Long {
+        val raw = message.createdAt.ifBlank { message.timestamp }.trim()
+        if (raw.isBlank()) return if (message.id < 0) Long.MAX_VALUE - kotlin.math.abs(message.id) else message.id
+        raw.toLongOrNull()?.let { return if (it < 10_000_000_000L) it * 1_000L else it }
+        return runCatching { OffsetDateTime.parse(raw.replace("Z", "+00:00")).toInstant().toEpochMilli() }
+            .recoverCatching { Instant.parse(raw).toEpochMilli() }
+            .recoverCatching { LocalDateTime.parse(raw).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }
+            .getOrElse { if (message.id < 0) Long.MAX_VALUE - kotlin.math.abs(message.id) else message.id }
     }
 
     override fun onCleared() {
         typingStopJob?.cancel()
         voiceTimerJob?.cancel()
+        messagesCollectionJob?.cancel()
+        messageSyncJob?.cancel()
+        realtimeRefreshJob?.cancel()
         webSocketManager.sendTyping(false)
+        typingStartedSent = false
         webSocketManager.disconnectChat()
         mediaRecorder?.release()
         super.onCleared()

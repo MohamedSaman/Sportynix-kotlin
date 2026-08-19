@@ -16,6 +16,9 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE chatId = :chatId ORDER BY id DESC LIMIT :limit")
     suspend fun getRecentMessages(chatId: Long, limit: Int): List<ChatMessageEntity>
 
+    @Query("SELECT * FROM chat_messages WHERE chatId = :chatId AND id = :messageId LIMIT 1")
+    suspend fun getMessage(chatId: Long, messageId: Long): ChatMessageEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMessages(messages: List<ChatMessageEntity>)
 
@@ -24,6 +27,9 @@ interface ChatDao {
 
     @Query("DELETE FROM chat_messages WHERE chatId = :chatId AND id = :messageId")
     suspend fun deleteMessage(chatId: Long, messageId: Long)
+
+    @Query("UPDATE chat_messages SET isPinned = :isPinned WHERE chatId = :chatId AND id = :messageId")
+    suspend fun updateMessagePinned(chatId: Long, messageId: Long, isPinned: Boolean)
 
     @Query("DELETE FROM chat_messages WHERE chatId = :chatId")
     suspend fun clearMessagesForChat(chatId: Long)

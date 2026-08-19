@@ -29,7 +29,7 @@ data class Chat(
     @SerializedName("chat_type") val chatType: String = "direct", // team_group, team_channel, direct, rivalry, challenge
     val team: TeamSimple? = null,
     @SerializedName("team_name") val teamName: String? = null,
-    @SerializedName("team_logo") val teamLogo: String? = null,
+    @SerializedName(value = "team_logo", alternate = ["team_logo_secure", "logo_secure"]) val teamLogo: String? = null,
     val name: String? = null,
     @SerializedName("display_name") val displayName: String? = null,
     val description: String? = null,
@@ -46,7 +46,9 @@ data class Chat(
     @SerializedName("pinned_messages") val pinnedMessages: List<ChatMessage>? = null,
     @SerializedName("other_user_name") val otherUserName: String? = null,
     @SerializedName("other_user_id") val otherUserId: Long? = null,
-    @SerializedName("other_user_avatar") val otherUserAvatar: String? = null,
+    @SerializedName(value = "other_user_avatar", alternate = ["other_user_avatar_secure", "profile_picture", "profile_picture_secure", "avatar", "avatar_url"]) val otherUserAvatar: String? = null,
+    @SerializedName("other_user_online") val otherUserOnline: Boolean? = null,
+    @SerializedName("other_user_last_seen") val otherUserLastSeen: String? = null,
     @SerializedName("is_admin") val isAdmin: Boolean? = null,
     @SerializedName("admin_only") val adminOnly: Boolean? = null,
     @SerializedName("can_post") val canPost: Boolean? = null,
@@ -60,7 +62,9 @@ data class Chat(
     @SerializedName("blocked_user_id") val blockedUserId: Long? = null,
     @SerializedName("blocked_user_name") val blockedUserName: String? = null,
     @SerializedName("block_status_message") val blockStatusMessage: String? = null,
-    @SerializedName("challenge_info") val challengeInfo: ChallengeInfo? = null
+    @SerializedName("challenge_info") val challengeInfo: ChallengeInfo? = null,
+    @SerializedName("rivalry_info") val rivalryInfo: RivalryInfo? = null,
+    @SerializedName("team_id") val teamId: Long? = null
 )
 
 data class ChatMember(
@@ -161,7 +165,7 @@ data class ChatRequestUser(
     val id: Long,
     val username: String,
     @SerializedName("full_name") val fullName: String,
-    @SerializedName("profile_picture") val profilePicture: String? = null
+    @SerializedName(value = "profile_picture", alternate = ["profile_picture_secure", "avatar", "avatar_url"]) val profilePicture: String? = null
 )
 
 data class ChatRequestItem(
@@ -296,6 +300,14 @@ data class ChallengeInfo(
     @SerializedName("past_games") val pastGames: PastGamesResponse? = null
 )
 
+data class RivalryInfo(
+    val id: Long,
+    @SerializedName("team_a") val teamA: ChallengeTeam,
+    @SerializedName("team_b") val teamB: ChallengeTeam,
+    @SerializedName("is_active") val isActive: Boolean? = null,
+    @SerializedName("total_challenges") val totalChallenges: Int? = null
+)
+
 data class SportSimple(
     val id: Long,
     val name: String
@@ -317,7 +329,8 @@ data class PastGame(
     @SerializedName("created_at") val createdAt: String = "",
     @SerializedName("updated_at") val updatedAt: String = "",
     val booking: GameBooking? = null,
-    val venue: VenueSimple? = null
+    val venue: VenueSimple? = null,
+    val game: SportSimple? = null
 )
 
 data class GameBooking(
@@ -326,12 +339,13 @@ data class GameBooking(
     @SerializedName("start_time") val startTime: String,
     @SerializedName("end_time") val endTime: String? = null,
     val status: String,
-    val team: ChallengeTeam? = null
+    val team: ChallengeTeam? = null,
+    @SerializedName("made_by") val madeBy: ChallengeMember? = null
 )
 
 data class PastGamesResponse(
     val page: Int = 1,
-    @SerializedName("page_size") val pageSize: Int = 10,
-    val total: Int = 0,
+    @SerializedName(value = "page_size", alternate = ["pageSize"]) val pageSize: Int = 10,
+    @SerializedName(value = "total", alternate = ["resultsCount"]) val total: Int = 0,
     val results: List<PastGame> = emptyList()
 )

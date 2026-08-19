@@ -1,6 +1,7 @@
 package com.sportynix.app.data.repository
 
 import android.content.Context
+import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -27,6 +28,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,6 +42,7 @@ class ChatRepositoryImpl @Inject constructor(
 ) : ChatRepository {
 
     private val dao = db.chatDao()
+    private val mediaInFlightAt = ConcurrentHashMap<Long, Long>()
 
     override fun getMyChatsCachedFirst(): Flow<List<Chat>> = flow {
         // Emit from memory/server fetch
@@ -367,10 +370,17 @@ class ChatRepositoryImpl @Inject constructor(
         metadata: Map<String, Any>?
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val clientMsgId = "media-$chatId-${System.currentTimeMillis()}-${(100000..999999).random()}"
-        val tempId = -System.currentTimeMillis()
-        val nowIso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(Date())
+        val tempId = -(System.currentTimeMillis() * 1_000L + (0..999).random())
+        val nowIso = java.time.Instant.now().toString()
+        val sourceFile = File(localMediaPath.removePrefix("file://"))
+        if (!sourceFile.exists()) return@withContext Result.failure(IllegalArgumentException("Selected media file is unavailable"))
+        val extension = when (mediaType) { "voice" -> "m4a"; "video" -> "mp4"; else -> sourceFile.extension.ifBlank { "jpg" } }
+        val outboxDirectory = File(context.filesDir, "chat_media/outbox").apply { mkdirs() }
+        val durableFile = File(outboxDirectory, "${clientMsgId.replace(':', '_')}.$extension")
+        sourceFile.copyTo(durableFile, overwrite = true)
+        val durablePath = durableFile.absolutePath
 
-        val metaMap = mutableMapOf<String, Any>("mediaType" to mediaType, "localMediaPath" to localMediaPath)
+        val metaMap = mutableMapOf<String, Any>("mediaType" to mediaType, "localMediaPath" to durablePath)
         if (duration != null) metaMap["duration"] = duration
         if (metadata != null) metaMap.putAll(metadata)
 
@@ -382,7 +392,7 @@ class ChatRepositoryImpl @Inject constructor(
             messageType = mediaType,
             bookingId = null,
             metadataJson = gson.toJson(metaMap),
-            localMediaPath = localMediaPath,
+            localMediaPath = durablePath,
             senderId = null,
             senderName = "You",
             createdAt = nowIso
@@ -410,7 +420,7 @@ class ChatRepositoryImpl @Inject constructor(
             bookingId = null,
             fileUrl = null,
             mediaExpiresAt = null,
-            localMediaPath = localMediaPath,
+            localMediaPath = durablePath,
             queued = true,
             clientMsgId = clientMsgId
         )
@@ -456,19 +466,31 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun pinMessage(chatId: Long, messageId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        dao.updateMessagePinned(chatId, messageId, true)
         try {
-            chatApi.pinMessage(chatId, mapOf("message_id" to messageId))
-            Result.success(Unit)
+            val response = chatApi.pinMessage(chatId, mapOf("message_id" to messageId))
+            if (response.isSuccessful) Result.success(Unit)
+            else {
+                dao.updateMessagePinned(chatId, messageId, false)
+                Result.failure(Exception("Failed to pin message"))
+            }
         } catch (e: Exception) {
+            dao.updateMessagePinned(chatId, messageId, false)
             Result.failure(e)
         }
     }
 
     override suspend fun unpinMessage(chatId: Long, messageId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        dao.updateMessagePinned(chatId, messageId, false)
         try {
-            chatApi.unpinMessage(chatId, mapOf("message_id" to messageId))
-            Result.success(Unit)
+            val response = chatApi.unpinMessage(chatId, mapOf("message_id" to messageId))
+            if (response.isSuccessful) Result.success(Unit)
+            else {
+                dao.updateMessagePinned(chatId, messageId, true)
+                Result.failure(Exception("Failed to unpin message"))
+            }
         } catch (e: Exception) {
+            dao.updateMessagePinned(chatId, messageId, true)
             Result.failure(e)
         }
     }
@@ -751,9 +773,13 @@ class ChatRepositoryImpl @Inject constructor(
             val res = chatApi.downloadMedia(chatId, messageId)
             if (res.isSuccessful && res.body() != null) {
                 res.body()!!.byteStream().use { input ->
+                    destinationFile.parentFile?.mkdirs()
                     destinationFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
+                }
+                dao.getMessage(chatId, messageId)?.let { existing ->
+                    dao.upsertMessage(existing.copy(localMediaPath = destinationFile.absolutePath))
                 }
                 Result.success(destinationFile)
             } else Result.failure(Exception("Download failed"))
@@ -791,6 +817,49 @@ class ChatRepositoryImpl @Inject constructor(
         for (item in outboxList) {
             try {
                 val meta = item.metadataJson?.let { gson.fromJson<Map<String, Any>>(it, object : TypeToken<Map<String, Any>>() {}.type) }
+                if (item.messageType in setOf("photo", "video", "voice")) {
+                    val localPath = item.localMediaPath ?: meta?.get("localMediaPath")?.toString()
+                    if (localPath.isNullOrBlank()) {
+                        dao.bumpOutboxRetry(item.clientMsgId, "Media outbox item is missing localMediaPath")
+                        continue
+                    }
+                    val now = System.currentTimeMillis()
+                    val lastAttempt = mediaInFlightAt[item.tempMessageId]
+                    if (lastAttempt != null && now - lastAttempt < 15_000L) continue
+                    val file = File(localPath.removePrefix("file://"))
+                    if (!file.exists()) {
+                        dao.bumpOutboxRetry(item.clientMsgId, "Local media file no longer exists")
+                        continue
+                    }
+                    if (!webSocketManager.isChatWsConnected.value) {
+                        dao.bumpOutboxRetry(item.clientMsgId, "WebSocket is not connected for media sync")
+                        continue
+                    }
+                    mediaInFlightAt[item.tempMessageId] = now
+                    val mime = when (item.messageType) {
+                        "voice" -> "audio/mpeg"
+                        "video" -> "video/mp4"
+                        else -> "image/jpeg"
+                    }
+                    val dataUrl = "data:$mime;base64," + Base64.encodeToString(file.readBytes(), Base64.NO_WRAP)
+                    val outboundMetadata = (meta?.get("reply_to") as? Map<*, *>)?.let { mapOf("reply_to" to it) }
+                    val sent = webSocketManager.sendMessage(
+                        mapOf(
+                            "type" to "message",
+                            "message_type" to item.messageType,
+                            "media_data" to dataUrl,
+                            "local_id" to item.tempMessageId,
+                            "duration" to (meta?.get("duration") as? Number)?.toInt(),
+                            "message" to item.message,
+                            "metadata" to outboundMetadata
+                        )
+                    )
+                    if (!sent) {
+                        mediaInFlightAt.remove(item.tempMessageId)
+                        dao.bumpOutboxRetry(item.clientMsgId, "WebSocket rejected media send")
+                    }
+                    continue
+                }
                 val req = SendMessageRequest(
                     message = item.message,
                     messageType = item.messageType,
@@ -809,6 +878,23 @@ class ChatRepositoryImpl @Inject constructor(
             }
         }
         Result.success(Unit)
+    }
+
+    override suspend fun reconcileQueuedMediaAck(chatId: Long, tempMessageId: Long, serverMessage: ChatMessage): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val pending = dao.getMessage(chatId, tempMessageId)
+            dao.deleteOutboxByTempId(tempMessageId)
+            dao.deleteMessage(chatId, tempMessageId)
+            dao.upsertMessage(
+                serverMessage.copy(
+                    localMediaPath = pending?.localMediaPath ?: serverMessage.localMediaPath,
+                    clientMsgId = pending?.clientMsgId ?: serverMessage.clientMsgId,
+                    queued = false
+                ).toEntity(gson)
+            )
+            mediaInFlightAt.remove(tempMessageId)
+            Unit
+        }
     }
 
     private fun isBeforeCutoff(timestampIso: String, cutoffIso: String): Boolean {
