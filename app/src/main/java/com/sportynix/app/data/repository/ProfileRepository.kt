@@ -401,7 +401,17 @@ class ProfileRepository @Inject constructor(
         return try {
             val response = apiService.getLocationCities(districtId, search)
             if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!)
+                val element = response.body()!!
+                val array = when {
+                    element.isJsonArray -> element.asJsonArray
+                    element.isJsonObject && element.asJsonObject.has("results") && element.asJsonObject.get("results").isJsonArray ->
+                        element.asJsonObject.getAsJsonArray("results")
+                    else -> null
+                }
+                val list = array?.mapNotNull {
+                    runCatching { gson.fromJson(it, LocationCityDto::class.java) }.getOrNull()
+                } ?: emptyList()
+                Result.success(list)
             } else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to fetch cities"))
         } catch (e: Exception) {
             Result.failure(e)

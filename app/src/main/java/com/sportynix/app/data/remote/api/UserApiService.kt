@@ -112,7 +112,7 @@ interface UserApiService {
         @Query("district_id") districtId: Int? = null,
         @Query("search") search: String? = null,
         @Query("page_size") pageSize: Int = 50
-    ): Response<List<LocationCityDto>>
+    ): Response<JsonElement>
 
     @GET("api/users/blocked/")
     suspend fun getBlockedUsers(): Response<List<BlockedUserDto>>

@@ -18,6 +18,7 @@ interface ChallengeApiService {
     @GET("api/challenges/incoming/") suspend fun incoming(@Query("status") status: String? = "pending"): Response<JsonElement>
     @GET("api/challenges/history/") suspend fun history(): Response<JsonElement>
     @GET("api/challenges/{id}/") suspend fun details(@Path("id") id: Int): Response<JsonElement>
+    @GET("api/challenges/relationships/") suspend fun relationships(): Response<JsonElement>
     @POST("api/challenges/") suspend fun create(@Body body: JsonObject): Response<JsonElement>
     @POST("api/challenges/{id}/accept/") suspend fun accept(@Path("id") id: Int): Response<JsonElement>
     @POST("api/challenges/{id}/decline/") suspend fun decline(@Path("id") id: Int): Response<JsonElement>

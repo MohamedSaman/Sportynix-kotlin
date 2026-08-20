@@ -571,10 +571,10 @@ fun EditProfileScreen(
                         Column(Modifier.verticalScroll(rememberScrollState())) {
                             state.locationResults.forEach { city ->
                                 ListItem(
-                                    headlineContent = { Text(city.nameEn, fontWeight = FontWeight.SemiBold) },
-                                    supportingContent = { Text("${city.districtName}, ${city.provinceName}") },
+                                    headlineContent = { Text(city.nameEn.orEmpty(), fontWeight = FontWeight.SemiBold) },
+                                    supportingContent = { Text("${city.districtName.orEmpty()}, ${city.provinceName.orEmpty()}") },
                                     leadingContent = { Icon(Icons.Default.LocationOn, null, tint = accentGreen) },
-                                    modifier = Modifier.clickable { viewModel.onCitySelected(city.id, city.nameEn, city.districtName, city.provinceName) }
+                                    modifier = Modifier.clickable { viewModel.onCitySelected(city.id, city.nameEn.orEmpty(), city.districtName.orEmpty(), city.provinceName.orEmpty()) }
                                 )
                                 HorizontalDivider()
                             }

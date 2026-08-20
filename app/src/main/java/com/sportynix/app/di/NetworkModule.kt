@@ -9,6 +9,7 @@ import com.sportynix.app.data.remote.api.AuthApiService
 import com.sportynix.app.data.remote.api.BookingApiService
 import com.sportynix.app.data.remote.api.ChatApiService
 import com.sportynix.app.data.remote.api.ChallengeApiService
+import com.sportynix.app.data.remote.api.LocationApiService
 import com.sportynix.app.data.remote.api.NotificationApiService
 import com.sportynix.app.data.remote.api.SportsApiService
 import com.sportynix.app.data.remote.api.TeamApiService
@@ -168,5 +169,11 @@ object NetworkModule {
     @Singleton
     fun providePlayerStatsApiService(retrofit: Retrofit): com.sportynix.app.data.remote.api.PlayerStatsApiService {
         return retrofit.create(com.sportynix.app.data.remote.api.PlayerStatsApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideLocationApiService(retrofit: Retrofit): LocationApiService {
+        return retrofit.create(LocationApiService::class.java)
     }
 }

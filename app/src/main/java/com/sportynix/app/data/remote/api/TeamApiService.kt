@@ -27,6 +27,11 @@ interface TeamApiService {
     @GET("api/teams/my_invitations/") suspend fun receivedInvitations(): Response<JsonElement>
     @GET("api/teams/my_sent_invitations/") suspend fun sentInvitations(): Response<JsonElement>
     @GET("api/teams/{id}/") suspend fun details(@Path("id") id: Int): Response<JsonElement>
+    @GET("api/teams/{id}/challenge-matches/") suspend fun challengeMatches(
+        @Path("id") id: Int,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 5
+    ): Response<JsonElement>
     @POST("api/teams/{id}/get_team_chat/") suspend fun teamChat(@Path("id") id: Int): Response<JsonElement>
     @GET("api/teams/{id}/pending_members/") suspend fun pendingMembers(@Path("id") id: Int): Response<JsonElement>
     @GET("api/teams/{id}/search_members/") suspend fun searchMembers(@Path("id") id: Int, @Query("q") query: String): Response<JsonElement>
@@ -47,6 +52,8 @@ interface TeamApiService {
     @POST("api/teams/{id}/generate_invite_link/") suspend fun generateInviteLink(@Path("id") id: Int): Response<JsonElement>
     @GET("api/teams/invite-link/resolve/") suspend fun resolveInvite(@Query("token") token: String): Response<JsonElement>
     @POST("api/teams/invite-link/request_join/") suspend fun requestInviteJoin(@Body body: JsonObject): Response<JsonElement>
+    @POST("api/teams/{id}/clear_chat/") suspend fun clearChat(@Path("id") id: Int, @Body body: JsonObject): Response<JsonElement>
+    @POST("api/teams/{id}/cancel_invitation/") suspend fun cancelInvitation(@Path("id") id: Int, @Body body: JsonObject): Response<JsonElement>
 
     @Multipart
     @POST("api/teams/")

@@ -161,12 +161,12 @@ data class LocationDistrictDto(
 )
 
 data class LocationCityDto(
-    @SerializedName("id") val id: Int,
-    @SerializedName("district_id") val districtId: Int,
-    @SerializedName("district_name") val districtName: String,
-    @SerializedName("province_id") val provinceId: Int,
-    @SerializedName("province_name") val provinceName: String,
-    @SerializedName("name_en") val nameEn: String
+    @SerializedName("id") val id: Int = 0,
+    @SerializedName("district_id") val districtId: Int? = null,
+    @SerializedName("district_name") val districtName: String? = null,
+    @SerializedName("province_id") val provinceId: Int? = null,
+    @SerializedName("province_name") val provinceName: String? = null,
+    @SerializedName("name_en") val nameEn: String? = null
 )
 
 data class BlockedUserDto(
