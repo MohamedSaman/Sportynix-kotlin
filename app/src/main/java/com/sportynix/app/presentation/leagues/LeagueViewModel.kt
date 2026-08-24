@@ -94,9 +94,15 @@ class LeagueViewModel @Inject constructor(
         }
     }
 
+    private var searchJob: kotlinx.coroutines.Job? = null
+
     fun onSearchQueryChanged(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
-        loadLeagues()
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(400)
+            loadLeagues()
+        }
     }
 
     fun onSportSelected(sport: String) {

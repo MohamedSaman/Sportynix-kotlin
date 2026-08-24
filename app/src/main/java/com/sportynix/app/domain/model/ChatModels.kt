@@ -1,6 +1,53 @@
 package com.sportynix.app.domain.model
 
 import com.google.gson.annotations.SerializedName
+import com.google.gson.JsonDeserializer
+import com.google.gson.JsonElement
+import com.google.gson.JsonDeserializationContext
+import java.lang.reflect.Type
+
+class LastMessageDeserializer : JsonDeserializer<LastMessage> {
+    override fun deserialize(
+        json: JsonElement,
+        typeOfT: Type,
+        context: JsonDeserializationContext
+    ): LastMessage {
+        return if (json.isJsonObject) {
+            val obj = json.asJsonObject
+            LastMessage(
+                message = if (obj.has("message") && !obj.get("message").isJsonNull) obj.get("message").asString else null,
+                senderName = if (obj.has("sender_name") && !obj.get("sender_name").isJsonNull) obj.get("sender_name").asString else null,
+                senderId = if (obj.has("sender_id") && !obj.get("sender_id").isJsonNull) runCatching { obj.get("sender_id").asLong }.getOrNull() else null,
+                messageType = if (obj.has("message_type") && !obj.get("message_type").isJsonNull) obj.get("message_type").asString else "text",
+                createdAt = if (obj.has("created_at") && !obj.get("created_at").isJsonNull) obj.get("created_at").asString else null,
+                duration = if (obj.has("duration") && !obj.get("duration").isJsonNull) runCatching { obj.get("duration").asInt }.getOrNull() else null,
+                bookingId = if (obj.has("booking_id") && !obj.get("booking_id").isJsonNull) runCatching { obj.get("booking_id").asLong }.getOrNull() else null
+            )
+        } else if (json.isJsonPrimitive) {
+            LastMessage(message = json.asString, messageType = "text")
+        } else {
+            LastMessage()
+        }
+    }
+}
+
+class TeamSimpleDeserializer : JsonDeserializer<TeamSimple> {
+    override fun deserialize(
+        json: JsonElement,
+        typeOfT: Type,
+        context: JsonDeserializationContext
+    ): TeamSimple? {
+        return if (json.isJsonObject) {
+            val obj = json.asJsonObject
+            val id = if (obj.has("id") && !obj.get("id").isJsonNull) runCatching { obj.get("id").asLong }.getOrDefault(0L) else 0L
+            val name = if (obj.has("name") && !obj.get("name").isJsonNull) obj.get("name").asString else ""
+            val logo = if (obj.has("logo") && !obj.get("logo").isJsonNull) obj.get("logo").asString else null
+            TeamSimple(id = id, name = name, logo = logo)
+        } else if (json.isJsonPrimitive && json.asJsonPrimitive.isNumber) {
+            TeamSimple(id = json.asLong, name = "")
+        } else null
+    }
+}
 
 data class LastMessage(
     val message: String? = null,

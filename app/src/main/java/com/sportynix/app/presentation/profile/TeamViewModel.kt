@@ -53,6 +53,15 @@ data class TeamFormState(
     val removeCover: Boolean = false
 )
 
+data class SearchedUserUi(
+    val id: Int,
+    val name: String,
+    val username: String = "",
+    val email: String = "",
+    val avatar: String? = null,
+    val allowDirectTeamAdd: Boolean = true
+)
+
 data class TeamMemberUi(
     val id: Int,
     val name: String,
@@ -143,7 +152,14 @@ data class TeamState(
     val selected: TeamUi? = null,
     val members: List<TeamMemberUi> = emptyList(),
     val pending: List<TeamMembershipUi> = emptyList(),
-    val searchedUsers: List<TeamMemberUi> = emptyList(),
+    val pendingRequests: List<TeamMembershipUi> = emptyList(),
+    val searchedUsers: List<SearchedUserUi> = emptyList(),
+    val invitedUserIds: Set<Int> = emptySet(),
+    val invitingUserId: Int? = null,
+    val inviteSuccessMessage: String? = null,
+    val isSearchingUsers: Boolean = false,
+    val isLoadingPending: Boolean = false,
+    val processingMembershipId: Int? = null,
     val cities: List<LocationCityDto> = emptyList(),
     val form: TeamFormState = TeamFormState(),
     val editing: Boolean = false,
@@ -152,6 +168,9 @@ data class TeamState(
     val showInviteSearch: Boolean = false,
     val inviteToken: String? = null,
     val invitePreview: TeamUi? = null,
+    val inviteResolveStatus: String? = null,
+    val inviteResolveIsFull: Boolean = false,
+    val inviteResolveMessage: String? = null,
     val inviteRequiresAuth: Boolean = false,
     val previewImageUrl: String? = null,
     val provinces: List<LocationProvince> = emptyList(),
@@ -477,17 +496,33 @@ class TeamViewModel @Inject constructor(
         _state.value = _state.value.copy(showDetails = false, selected = null, searchedUsers = emptyList(), inviteSearchQuery = "")
     }
 
-    fun loadPending(teamId: Int) = request("pending-$teamId") {
-        val response = api.pendingMembers(teamId)
-        ensureOk(response)
-        _state.value = _state.value.copy(pending = parseMemberships(response.body()!!), loading = false)
+    fun loadPending(teamId: Int) {
+        _state.value = _state.value.copy(isLoadingPending = true)
+        viewModelScope.launch {
+            try {
+                val response = api.pendingMembers(teamId)
+                if (response.isSuccessful && response.body() != null) {
+                    val all = parseMemberships(response.body()!!)
+                    val requestedOnly = all.filter { it.status.equals("requested", ignoreCase = true) }
+                    _state.value = _state.value.copy(
+                        pendingRequests = requestedOnly,
+                        pending = requestedOnly,
+                        isLoadingPending = false
+                    )
+                } else {
+                    _state.value = _state.value.copy(isLoadingPending = false)
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isLoadingPending = false)
+            }
+        }
     }
 
     fun onInviteQueryChanged(query: String) {
         _state.value = _state.value.copy(inviteSearchQuery = query)
         searchDebounceJob?.cancel()
         if (query.trim().isEmpty()) {
-            _state.value = _state.value.copy(searchedUsers = emptyList())
+            _state.value = _state.value.copy(searchedUsers = emptyList(), isSearchingUsers = false)
             return
         }
         searchDebounceJob = viewModelScope.launch {
@@ -497,15 +532,27 @@ class TeamViewModel @Inject constructor(
     }
 
     fun searchMembers(query: String) {
-        val id = _state.value.selected?.id ?: return
-        if (query.trim().isEmpty()) {
-            _state.value = _state.value.copy(searchedUsers = emptyList())
+        val teamId = _state.value.selected?.id ?: return
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            _state.value = _state.value.copy(searchedUsers = emptyList(), isSearchingUsers = false)
             return
         }
-        request("search-$id") {
-            val response = api.searchMembers(id, query.trim())
-            ensureOk(response)
-            _state.value = _state.value.copy(searchedUsers = parseMembers(response.body()!!), loading = false)
+        _state.value = _state.value.copy(isSearchingUsers = true)
+        viewModelScope.launch {
+            try {
+                val response = api.searchMembers(teamId, trimmed)
+                if (response.isSuccessful && response.body() != null) {
+                    val rawUsers = parseSearchedUsers(response.body()!!)
+                    val currentMemberIds = _state.value.members.map { it.id }.toSet()
+                    val filtered = rawUsers.filter { it.id !in currentMemberIds }
+                    _state.value = _state.value.copy(searchedUsers = filtered, isSearchingUsers = false)
+                } else {
+                    _state.value = _state.value.copy(searchedUsers = emptyList(), isSearchingUsers = false)
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(searchedUsers = emptyList(), isSearchingUsers = false)
+            }
         }
     }
 
@@ -599,31 +646,131 @@ class TeamViewModel @Inject constructor(
         loadInvitations()
     }
 
-    fun invite(user: TeamMemberUi) = action("invite-${user.id}") {
-        val teamId = _state.value.selected?.id ?: return@action
-        val response = api.invite(teamId, obj("user_id", user.id))
-        ensureOk(response)
-        val status = response.body()?.string("membership_status") ?: response.body()?.string("status")
-        _state.value = _state.value.copy(
-            message = if (status == "approved") "Member added to team" else "Invitation sent",
-            searchedUsers = emptyList(),
-            inviteSearchQuery = ""
-        )
-        openDetails(_state.value.selected!!)
+    fun inviteUser(user: SearchedUserUi) {
+        val teamId = _state.value.selected?.id ?: return
+        if (_state.value.invitingUserId != null) return
+        _state.value = _state.value.copy(invitingUserId = user.id, inviteSuccessMessage = null)
+        viewModelScope.launch {
+            try {
+                val response = api.invite(teamId, obj("user_id", user.id))
+                if (response.isSuccessful) {
+                    val status = response.body()?.string("membership_status") ?: response.body()?.string("status")
+                    val isApproved = status == "approved"
+                    val msg = if (isApproved) "Member added to team" else "Invitation sent successfully!"
+                    val updatedInvited = _state.value.invitedUserIds + user.id
+                    _state.value = _state.value.copy(
+                        invitingUserId = null,
+                        invitedUserIds = updatedInvited,
+                        inviteSuccessMessage = msg
+                    )
+                    if (isApproved) {
+                        _state.value.selected?.let { openDetails(it) }
+                    }
+                } else {
+                    val errorStr = response.errorBody()?.string().orEmpty()
+                    if (errorStr.contains("User already has a membership")) {
+                        val updatedInvited = _state.value.invitedUserIds + user.id
+                        _state.value = _state.value.copy(
+                            invitingUserId = null,
+                            invitedUserIds = updatedInvited,
+                            inviteSuccessMessage = "User is already an invited member"
+                        )
+                    } else {
+                        _state.value = _state.value.copy(
+                            invitingUserId = null,
+                            error = "Failed to invite user: ${response.code()}"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(invitingUserId = null, error = e.message ?: "Failed to invite user")
+            }
+            delay(3000)
+            if (_state.value.inviteSuccessMessage != null) {
+                _state.value = _state.value.copy(inviteSuccessMessage = null)
+            }
+        }
     }
 
-    fun approve(item: TeamMembershipUi) = action("approve-${item.id}") {
-        val teamId = _state.value.selected?.id ?: return@action
-        ensureOk(api.approveMembership(teamId, obj("membership_id", item.id)))
-        _state.value = _state.value.copy(message = "Membership approved")
-        openDetails(_state.value.selected!!)
+    fun cancelInviteUser(user: SearchedUserUi) {
+        val teamId = _state.value.selected?.id ?: return
+        if (_state.value.invitingUserId != null) return
+        _state.value = _state.value.copy(invitingUserId = user.id, inviteSuccessMessage = null)
+        viewModelScope.launch {
+            try {
+                val response = api.cancelInvitation(teamId, obj("user_id", user.id))
+                if (response.isSuccessful) {
+                    val updatedInvited = _state.value.invitedUserIds - user.id
+                    _state.value = _state.value.copy(
+                        invitingUserId = null,
+                        invitedUserIds = updatedInvited,
+                        inviteSuccessMessage = "Invitation cancelled!"
+                    )
+                } else {
+                    _state.value = _state.value.copy(
+                        invitingUserId = null,
+                        error = "Failed to cancel invitation"
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(invitingUserId = null, error = e.message ?: "Failed to cancel invitation")
+            }
+            delay(3000)
+            if (_state.value.inviteSuccessMessage != null) {
+                _state.value = _state.value.copy(inviteSuccessMessage = null)
+            }
+        }
     }
 
-    fun reject(item: TeamMembershipUi) = action("reject-${item.id}") {
-        val teamId = _state.value.selected?.id ?: return@action
-        ensureOk(api.rejectMembership(teamId, obj("membership_id", item.id)))
-        _state.value = _state.value.copy(message = "Membership rejected")
-        loadPending(teamId)
+    fun approve(item: TeamMembershipUi) {
+        val teamId = _state.value.selected?.id ?: return
+        if (_state.value.processingMembershipId != null) return
+        _state.value = _state.value.copy(processingMembershipId = item.id)
+        viewModelScope.launch {
+            try {
+                val response = api.approveMembership(teamId, obj("membership_id", item.id))
+                if (response.isSuccessful) {
+                    val updated = _state.value.pendingRequests.filterNot { it.id == item.id }
+                    _state.value = _state.value.copy(
+                        pendingRequests = updated,
+                        pending = updated,
+                        processingMembershipId = null,
+                        message = "Membership approved"
+                    )
+                    _state.value.selected?.let { currentTeam ->
+                        openDetails(currentTeam)
+                    }
+                } else {
+                    _state.value = _state.value.copy(processingMembershipId = null, error = "Failed to approve membership")
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(processingMembershipId = null, error = e.message ?: "Failed to approve membership")
+            }
+        }
+    }
+
+    fun reject(item: TeamMembershipUi) {
+        val teamId = _state.value.selected?.id ?: return
+        if (_state.value.processingMembershipId != null) return
+        _state.value = _state.value.copy(processingMembershipId = item.id)
+        viewModelScope.launch {
+            try {
+                val response = api.rejectMembership(teamId, obj("membership_id", item.id))
+                if (response.isSuccessful) {
+                    val updated = _state.value.pendingRequests.filterNot { it.id == item.id }
+                    _state.value = _state.value.copy(
+                        pendingRequests = updated,
+                        pending = updated,
+                        processingMembershipId = null,
+                        message = "Membership rejected"
+                    )
+                } else {
+                    _state.value = _state.value.copy(processingMembershipId = null, error = "Failed to reject membership")
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(processingMembershipId = null, error = e.message ?: "Failed to reject membership")
+            }
+        }
     }
 
     fun addAdmin(member: TeamMemberUi) = action("add-admin-${member.id}") {
@@ -685,11 +832,16 @@ class TeamViewModel @Inject constructor(
         val response = api.resolveInvite(token)
         ensureOk(response)
         val root = response.body()!!
-        val team = parseTeam(root.asJsonObject.obj("team") ?: root, null)
+        val teamObj = if (root.isJsonObject && root.asJsonObject.has("team")) root.asJsonObject.obj("team") ?: root.asJsonObject else root.asJsonObject
+        val team = parseTeam(teamObj, null)
+        val status = root.asJsonObject.string("join_status") ?: "none"
+        val isFull = root.asJsonObject.bool("is_full") ?: false
         _state.value = _state.value.copy(
             tab = TeamTab.JOIN,
             inviteToken = token,
             invitePreview = team,
+            inviteResolveStatus = status,
+            inviteResolveIsFull = isFull,
             inviteRequiresAuth = root.asJsonObject.bool("requires_authentication") == true,
             loading = false
         )
@@ -697,10 +849,22 @@ class TeamViewModel @Inject constructor(
 
     fun requestInviteJoin() = action("invite-join") {
         val token = _state.value.inviteToken ?: return@action
-        ensureOk(api.requestInviteJoin(obj("token", token)))
+        val response = api.requestInviteJoin(obj("token", token))
+        ensureOk(response)
+        val msg = response.body()?.string("message") ?: "Your join request has been sent successfully!"
         _state.value = _state.value.copy(
-            invitePreview = _state.value.invitePreview?.copy(joinStatus = JoinStatus.REQUESTED),
-            message = "Join request sent"
+            inviteResolveStatus = "requested",
+            inviteResolveMessage = msg,
+            invitePreview = _state.value.invitePreview?.copy(joinStatus = JoinStatus.REQUESTED)
+        )
+    }
+
+    fun dismissInvitePreview() {
+        _state.value = _state.value.copy(
+            inviteToken = null,
+            invitePreview = null,
+            inviteResolveStatus = null,
+            inviteResolveMessage = null
         )
     }
 
@@ -754,8 +918,8 @@ class TeamViewModel @Inject constructor(
         }
     }
 
-    fun openChat(team: TeamUi) = action("chat-${team.id}") {
-        val response = api.teamChat(team.id)
+    fun openChat(team: TeamUi, chatType: String = "team_group") = action("chat-${team.id}-$chatType") {
+        val response = api.teamChat(team.id, chatType)
         ensureOk(response)
         val conversationId = response.body()?.string("id")
             ?: response.body()?.string("chat_id")
@@ -912,7 +1076,12 @@ class TeamViewModel @Inject constructor(
     }
 
     private fun parseRecentMatches(element: JsonElement): List<RecentMatchUi> =
-        array(element).mapNotNull { if (it.isJsonObject) matchItem(it.asJsonObject) else null }
+        array(element).mapNotNull {
+            if (it.isJsonObject) {
+                val obj = it.asJsonObject
+                if (obj.bool("is_expired") == true) null else matchItem(obj)
+            } else null
+        }
 
     private fun matchItem(o: JsonObject): RecentMatchUi {
         val opponentObj = o.obj("opponent")
@@ -942,6 +1111,18 @@ class TeamViewModel @Inject constructor(
             opponentScore = oppScore
         )
     }
+
+    private fun parseSearchedUsers(element: JsonElement): List<SearchedUserUi> =
+        array(element).mapNotNull { if (it.isJsonObject) searchedUser(it.asJsonObject) else null }
+
+    private fun searchedUser(o: JsonObject) = SearchedUserUi(
+        id = o.int("id", "user_id") ?: 0,
+        name = o.string("full_name", "name") ?: "User",
+        username = o.string("username") ?: "",
+        email = o.string("email") ?: "",
+        avatar = makeFullUrl(o.string("avatar_secure", "profilePictureURL", "avatar", "profile_picture")),
+        allowDirectTeamAdd = o.bool("allow_direct_team_add") ?: true
+    )
 
     private fun member(o: JsonObject) = TeamMemberUi(
         id = o.int("id", "user_id") ?: 0,

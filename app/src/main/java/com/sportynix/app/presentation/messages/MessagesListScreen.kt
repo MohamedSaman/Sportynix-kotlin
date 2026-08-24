@@ -212,11 +212,27 @@ fun MessagesListScreen(
                 } else {
                     // Conversations List
                     val filteredList = uiState.conversations.filter { chat ->
-                        val matchesSearch = uiState.searchQuery.isEmpty() || (chat.name ?: chat.teamName ?: chat.otherUserName ?: "").contains(uiState.searchQuery, ignoreCase = true)
+                        val chatTitle = when {
+                            chat.chatType == "direct" && !chat.otherUserName.isNullOrBlank() -> chat.otherUserName
+                            !chat.displayName.isNullOrBlank() -> chat.displayName
+                            !chat.teamName.isNullOrBlank() -> chat.teamName
+                            !chat.name.isNullOrBlank() -> {
+                                if (chat.name.contains("Direct Chat between", ignoreCase = true)) {
+                                    chat.otherUserName ?: chat.name
+                                } else chat.name
+                            }
+                            else -> ""
+                        }
+                        val lastText = chat.lastMessageText ?: chat.lastMessage?.message ?: ""
+                        val matchesSearch = uiState.searchQuery.isEmpty() ||
+                                chatTitle.contains(uiState.searchQuery, ignoreCase = true) ||
+                                lastText.contains(uiState.searchQuery, ignoreCase = true)
+
                         val matchesFilter = when (uiState.chatFilter) {
                             "unread" -> chat.unreadCount > 0
-                            "groups" -> chat.chatType == "team_group"
-                            "channels" -> chat.chatType == "team_channel"
+                            "groups" -> chat.chatType in setOf("team_group", "group", "rivalry", "challenge") || !chat.teamName.isNullOrBlank() || chat.team != null
+                            "channels" -> chat.chatType in setOf("team_channel", "channel")
+                            "chat_requests" -> false
                             else -> true
                         }
                         matchesSearch && matchesFilter
@@ -298,121 +314,170 @@ fun ConversationCard(
     chat: Chat,
     onClick: () -> Unit
 ) {
-    val title = chat.displayName ?: chat.otherUserName ?: chat.teamName ?: chat.name ?: "Chat"
-    val avatarUrl = resolveMediaUrl(if (chat.chatType == "direct") chat.otherUserAvatar else (chat.teamLogo ?: chat.otherUserAvatar))
+    val title = when {
+        chat.chatType == "direct" && !chat.otherUserName.isNullOrBlank() -> chat.otherUserName
+        !chat.displayName.isNullOrBlank() -> chat.displayName
+        !chat.teamName.isNullOrBlank() -> chat.teamName
+        !chat.name.isNullOrBlank() -> {
+            if (chat.name.contains("Direct Chat between", ignoreCase = true)) {
+                chat.otherUserName ?: chat.name
+            } else chat.name
+        }
+        else -> "Chat"
+    }
+    val avatarUrl = resolveMediaUrl(
+        if (chat.chatType == "direct") chat.otherUserAvatar
+        else (chat.teamLogo ?: chat.team?.logo ?: chat.otherUserAvatar)
+    )
     val lastMsgText = when (val lm = chat.lastMessage) {
-        null -> chat.lastMessageText ?: ""
-        else -> when (lm.messageType) {
-            "photo" -> "📷 Photo"
-            "video" -> "🎥 Video"
-            "voice" -> "🎙️ Voice message"
-            "event" -> "📅 Event"
-            else -> lm.message ?: ""
+        null -> chat.lastMessageText?.ifBlank { "No messages yet" } ?: "No messages yet"
+        else -> {
+            val prefix = if (!lm.senderName.isNullOrBlank()) "${lm.senderName}: " else ""
+            val content = when (lm.messageType) {
+                "photo" -> "📷 Photo"
+                "video" -> "🎥 Video"
+                "voice" -> "🎙️ Voice message"
+                "event" -> "📅 Event"
+                else -> lm.message ?: ""
+            }
+            if (content.isBlank()) "No messages yet" else "$prefix$content"
         }
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 2.dp, vertical = 5.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 68.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-            Box {
-                if (!avatarUrl.isNullOrEmpty()) {
-                    SubcomposeAsyncImage(
-                        model = avatarUrl,
-                        contentDescription = title,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop,
-                        loading = { CompactAvatarFallback(title) },
-                        error = { CompactAvatarFallback(title) },
-                        success = { SubcomposeAsyncImageContent() }
-                    )
-                } else {
-                    CompactAvatarFallback(title)
-                }
-
-                if (chat.unreadCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .size(17.dp)
-                            .clip(CircleShape)
-                            .background(LiquidGlassTheme.PrimaryGreen)
-                            .align(Alignment.BottomEnd)
-                            .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (chat.unreadCount > 99) "99+" else chat.unreadCount.toString(),
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier.size(16.dp).align(Alignment.BottomEnd).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.5.dp, MaterialTheme.colorScheme.background, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = when (chat.chatType) {
-                                "team_group" -> Icons.Default.Groups
-                                "team_channel" -> Icons.Default.Tag
-                                else -> Icons.Default.Person
-                            },
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(10.dp)
-                        )
-                    }
-                }
+        Box(modifier = Modifier.size(48.dp)) {
+            if (!avatarUrl.isNullOrEmpty()) {
+                SubcomposeAsyncImage(
+                    model = avatarUrl,
+                    contentDescription = title,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                    loading = { CompactAvatarFallback(title, chat.chatType) },
+                    error = { CompactAvatarFallback(title, chat.chatType) },
+                    success = { SubcomposeAsyncImageContent() }
+                )
+            } else {
+                CompactAvatarFallback(title, chat.chatType)
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            // Bottom Right Type / Unread Badge
+            val badgeBg = when (chat.chatType) {
+                "team_group" -> LiquidGlassTheme.PrimaryGreen
+                "team_channel" -> LiquidGlassTheme.PrimaryGreen
+                else -> Color(0xFF9CA3AF)
+            }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            if (chat.unreadCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(LiquidGlassTheme.PrimaryGreen)
+                        .align(Alignment.BottomEnd)
+                        .border(1.5.dp, MaterialTheme.colorScheme.background, CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = formatConversationTime(chat.lastMessageTime),
-                        fontSize = 10.sp,
-                        color = Color.Gray
+                        text = if (chat.unreadCount > 99) "99+" else chat.unreadCount.toString(),
+                        color = Color.White,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .align(Alignment.BottomEnd)
+                        .clip(CircleShape)
+                        .background(badgeBg)
+                        .border(1.5.dp, MaterialTheme.colorScheme.background, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when (chat.chatType) {
+                            "team_group" -> Icons.Default.Groups
+                            "team_channel" -> Icons.Default.ChatBubble
+                            else -> Icons.Default.Person
+                        },
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = lastMsgText,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = formatConversationTime(chat.lastMessageTime),
+                    fontSize = 11.sp,
+                    color = Color.Gray
                 )
             }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = lastMsgText,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
 @Composable
-private fun CompactAvatarFallback(title: String) {
+private fun CompactAvatarFallback(title: String, chatType: String? = null) {
+    val bg = when (chatType) {
+        "team_channel" -> Color(0xFF1B3B2B)
+        "team_group" -> Color(0xFF24362E)
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
     Box(
-        modifier = Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(bg),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .72f), modifier = Modifier.size(25.dp))
+        Icon(
+            imageVector = when (chatType) {
+                "team_group" -> Icons.Default.Groups
+                "team_channel" -> Icons.Default.Person
+                else -> Icons.Default.Person
+            },
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.85f),
+            modifier = Modifier.size(24.dp)
+        )
     }
 }
 

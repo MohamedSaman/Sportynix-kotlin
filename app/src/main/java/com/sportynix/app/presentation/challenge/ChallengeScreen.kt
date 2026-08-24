@@ -59,6 +59,7 @@ import java.time.format.DateTimeFormatter
 fun ChallengeScreen(
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String) -> Unit,
+    onNavigateToScoring: (String) -> Unit = {},
     vm: ChallengeViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
@@ -105,7 +106,8 @@ fun ChallengeScreen(
                         MyChallengesContent(state, green, vm, 
                             onAccept = { showConfirmAccept = it },
                             onDecline = { showConfirmDecline = it },
-                            onCancel = { showConfirmCancel = it }
+                            onCancel = { showConfirmCancel = it },
+                            onOpenScoring = onNavigateToScoring
                         )
                     }
                 }
@@ -126,16 +128,61 @@ fun ChallengeScreen(
             }
 
             state.message?.let { msg ->
-                LaunchedEffect(msg) {
-                    kotlinx.coroutines.delay(2200)
-                    vm.dismissMessage()
-                }
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 32.dp)
-                ) {
-                    LiquidGlassBadge(text = msg, badgeColor = green)
+                if (msg.contains("sent", ignoreCase = true) || msg.contains("success", ignoreCase = true)) {
+                    LiquidGlassDialog(onDismissRequest = vm::dismissMessage) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(green.copy(alpha = 0.2f))
+                                    .border(2.dp, green, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Check, null, tint = green, modifier = Modifier.size(36.dp))
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text("Challenge Sent! 🎉", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                text = "Your challenge has been sent to ${state.selectedOpponent?.name ?: "the opponent team"}.\nThey will be notified shortly.\n\nOnce accepted, you can discuss venue and time in the rivalry chat.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 17.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            Button(
+                                onClick = vm::dismissMessage,
+                                colors = ButtonDefaults.buttonColors(containerColor = green),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().height(46.dp)
+                            ) {
+                                Text("OK", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                            }
+                        }
+                    }
+                } else {
+                    LaunchedEffect(msg) {
+                        kotlinx.coroutines.delay(2500)
+                        vm.dismissMessage()
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 32.dp)
+                    ) {
+                        LiquidGlassBadge(text = msg, badgeColor = green)
+                    }
                 }
             }
 
@@ -161,7 +208,8 @@ fun ChallengeScreen(
                     onCancel = {
                         vm.closeDetails()
                         showConfirmCancel = challenge
-                    }
+                    },
+                    onOpenScoring = onNavigateToScoring
                 )
             }
 
@@ -365,7 +413,9 @@ private fun FindTeamsContent(
                 items(state.opponents, key = { it.id }) { team ->
                     TeamChallengeCard(
                         team = team,
+                        myTeamId = state.selectedTeam?.id ?: state.myTeams.firstOrNull()?.id,
                         green = green,
+                        vm = vm,
                         onPreview = { vm.openTeam(team) },
                         onChallenge = { vm.selectOpponentFromPreview(team); vm.nextStep() }
                     )
@@ -405,7 +455,8 @@ private fun MyChallengesContent(
     vm: ChallengeViewModel,
     onAccept: (ChallengeUi) -> Unit,
     onDecline: (ChallengeUi) -> Unit,
-    onCancel: (ChallengeUi) -> Unit
+    onCancel: (ChallengeUi) -> Unit,
+    onOpenScoring: (String) -> Unit
 ) {
     val list = when (state.section) {
         ChallengeSection.INCOMING -> state.incoming
@@ -414,6 +465,7 @@ private fun MyChallengesContent(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // Section Subtab Filter Row matching Screenshots 2 & 3
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -421,8 +473,15 @@ private fun MyChallengesContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ChallengeSection.entries.forEach { section ->
-                val label = section.name.lowercase().replaceFirstChar { it.uppercase() }
+                val count = when (section) {
+                    ChallengeSection.INCOMING -> state.incoming.size
+                    ChallengeSection.SENT -> state.sent.size
+                    ChallengeSection.HISTORY -> state.history.size
+                }
+                val rawLabel = section.name.lowercase().replaceFirstChar { it.uppercase() }
+                val label = if (count > 0 && section != ChallengeSection.HISTORY) "$rawLabel ($count)" else rawLabel
                 val isSelected = state.section == section
+
                 LiquidGlassFilterChip(
                     selected = isSelected,
                     onClick = { vm.setSection(section) },
@@ -430,6 +489,22 @@ private fun MyChallengesContent(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+
+        // Section Description Header
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
+            val title = when (state.section) {
+                ChallengeSection.INCOMING -> "Challenges from other teams"
+                ChallengeSection.SENT -> "Sent Challenges"
+                ChallengeSection.HISTORY -> "Challenge History"
+            }
+            val subtitle = when (state.section) {
+                ChallengeSection.INCOMING -> "Accept or decline challenges sent to your teams"
+                ChallengeSection.SENT -> "Challenges sent by your team members. Cancel option only available for your own challenges."
+                ChallengeSection.HISTORY -> "Past completed, declined, and cancelled challenges"
+            }
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         PullToRefreshBox(
@@ -465,7 +540,8 @@ private fun MyChallengesContent(
                             vm = vm,
                             onAccept = { onAccept(challenge) },
                             onDecline = { onDecline(challenge) },
-                            onCancel = { onCancel(challenge) }
+                            onCancel = { onCancel(challenge) },
+                            onOpenScoring = onOpenScoring
                         )
                     }
                 }
@@ -477,49 +553,92 @@ private fun MyChallengesContent(
 @Composable
 private fun TeamChallengeCard(
     team: ChallengeTeamUi,
+    myTeamId: Int?,
     green: Color,
+    vm: ChallengeViewModel,
     onPreview: () -> Unit,
     onChallenge: () -> Unit
 ) {
+    val blockReason = vm.getChallengeBlockReason(myTeamId, team.id)
+    val isDisabled = blockReason != null
+    val buttonText = when (blockReason) {
+        "existing" -> "Already in challenge"
+        "pending" -> "Pending Challenge"
+        else -> "Challenge"
+    }
+
+    val isDark = LocalThemeController.current.isDark
+
     LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = onPreview
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TeamLogoImage(logoUrl = team.logo, teamName = team.name, green = green, size = 52)
-            
-            Spacer(modifier = Modifier.width(14.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(team.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    text = "${team.members} members${if (team.location.isNotBlank()) " • ${team.location}" else ""}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-                if (team.sport.isNotBlank()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TeamLogoImage(logoUrl = team.logo, teamName = team.name, green = green, size = 52)
+                
+                Spacer(modifier = Modifier.width(14.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(team.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        text = team.sport,
+                        text = "${team.members} members${if (team.location.isNotBlank()) " • ${team.location}" else ""}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = if (team.sport.isNotBlank()) team.sport else "Multi-sport",
                         color = green,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 2.dp)
                     )
+                    if (isDisabled) {
+                        Text(
+                            text = if (blockReason == "existing") "Already connected in challenge/chat" else "Pending challenge already exists with this opponent",
+                            color = Color(0xFFF59E0B),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                Button(
+                    onClick = {
+                        if (!isDisabled) onChallenge()
+                    },
+                    enabled = !isDisabled,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isDisabled) Color.Gray.copy(alpha = 0.3f) else green,
+                        disabledContainerColor = Color.Gray.copy(alpha = 0.2f),
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(buttonText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
-            
-            Button(
-                onClick = onChallenge,
-                colors = ButtonDefaults.buttonColors(containerColor = green),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+            // Stats row (5 columns) matching Screenshot 1
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+            Spacer(modifier = Modifier.height(8.dp))
+            val stats = team.challengeStats ?: ChallengeStatsUi(0, 0, 0, 0, 0.0)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("Challenge", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                StatBox(label = "PLAYED", value = "${stats.totalMatches}", color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                StatBox(label = "WINS", value = "${stats.wins}", color = green, modifier = Modifier.weight(1f))
+                StatBox(label = "LOSSES", value = "${stats.losses}", color = StatusError, modifier = Modifier.weight(1f))
+                StatBox(label = "NO RESULT", value = "${stats.noResults}", color = AccentGold, modifier = Modifier.weight(1f))
+                StatBox(label = "WIN %", value = "${String.format(java.util.Locale.US, "%.1f", stats.winPercentage)}%", color = green, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -532,7 +651,8 @@ private fun ChallengeCard(
     vm: ChallengeViewModel,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onOpenScoring: (String) -> Unit
 ) {
     val isDark = LocalThemeController.current.isDark
     val statusColor = when (c.status.lowercase()) {
@@ -540,6 +660,8 @@ private fun ChallengeCard(
         "declined", "cancelled", "expired" -> StatusError
         else -> StatusWarning
     }
+
+    val canOpenScoring = c.enableScoring || !c.cricketScoringMatchId.isNullOrBlank() || (c.sport.contains("cricket", ignoreCase = true) && (c.status.equals("accepted", true) || c.status.equals("completed", true)))
 
     LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -550,94 +672,104 @@ private fun ChallengeCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = c.challenger,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
                 LiquidGlassBadge(
                     text = c.status.replaceFirstChar { it.uppercase() },
                     badgeColor = statusColor
                 )
-            }
-            Text(
-                text = "vs  ${c.challenged}",
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-            
-            Spacer(modifier = Modifier.height(10.dp))
-            
-            // Details Tag
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 2.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Sports,
-                    contentDescription = null,
-                    tint = green,
-                    modifier = Modifier.size(14.dp)
-                )
+                Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = c.sport,
-                    color = green,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 6.dp)
+                    text = c.date?.let { "Date $it" } ?: "Date TBD",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (c.venue.isNotBlank()) {
-                    Text(
-                        text = " • ${c.venue}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Challenger VS Opponent Layout matching Screenshots 2 & 3
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    TeamLogoImage(logoUrl = null, teamName = c.challenger, green = green, size = 48)
+                    Text(c.challenger, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                    Text("Challenger", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                Text(
+                    text = "VS",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    TeamLogoImage(logoUrl = null, teamName = c.challenged, green = green, size = 48)
+                    Text(c.challenged, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                    Text("Opponent", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            c.date?.let { dateStr ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 2.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = "${dateStr}${c.start?.let { " at $it" } ?: ""}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Sport & Details Box
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+                    .padding(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(getSportEmoji(c.sport), fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(c.sport.ifBlank { "Cricket & Football" }, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            if (c.venue.isNotBlank()) c.venue else "Details to be decided in chat",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
             if (c.stake > 0.0) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(vertical = 2.dp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.MonetizationOn, null, tint = green, modifier = Modifier.size(14.dp))
+                    Text("Stake: Rs. ${"%.2f".format(c.stake)}", color = green, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp))
+                }
+            }
+
+            // Cricket Scoring Quick Access Button
+            if (canOpenScoring) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = { onOpenScoring(c.cricketScoringMatchId ?: c.id.toString()) },
+                    colors = ButtonDefaults.buttonColors(containerColor = green),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.MonetizationOn,
-                        contentDescription = null,
-                        tint = green,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "Stake: Rs. ${"%.2f".format(c.stake)}",
-                        color = green,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🏏", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (!c.cricketScoringMatchId.isNullOrBlank()) "Open Cricket Scoring" else "Live Cricket Scoring",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
 
@@ -710,34 +842,50 @@ private fun TeamLogoImage(
     green: Color,
     size: Int
 ) {
-    if (!logoUrl.isNullOrBlank()) {
-        AsyncImage(
-            model = logoUrl,
-            contentDescription = "Team Logo",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(size.dp)
-                .clip(RoundedCornerShape((size * 0.28).dp))
-                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape((size * 0.28).dp))
-        )
-    } else {
+    val isDark = LocalThemeController.current.isDark
+    Box(contentAlignment = Alignment.BottomEnd) {
+        if (!logoUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = logoUrl,
+                contentDescription = "Team Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(size.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(size.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(green, green.copy(alpha = 0.7f))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = teamName.firstOrNull()?.uppercase()?.toString() ?: "",
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = (size * 0.4).sp
+                )
+            }
+        }
+
+        // Small sport ball overlay matching Screenshot 1
         Box(
             modifier = Modifier
-                .size(size.dp)
-                .clip(RoundedCornerShape((size * 0.28).dp))
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(green, green.copy(alpha = 0.7f))
-                    )
-                ),
+                .offset(x = 2.dp, y = 2.dp)
+                .size((size * 0.35).dp)
+                .clip(CircleShape)
+                .background(if (isDark) DarkSurface else Color.White)
+                .border(1.dp, green, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = teamName.firstOrNull()?.uppercase()?.toString() ?: "",
-                color = Color.White,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = (size * 0.4).sp
-            )
+            Text("⚾", fontSize = (size * 0.2).sp)
         }
     }
 }
@@ -750,37 +898,92 @@ private fun CreateChallengeSheet(
     green: Color,
     vm: ChallengeViewModel
 ) {
+    val isDark = LocalThemeController.current.isDark
+    val currentStepIndex = ChallengeStep.entries.indexOf(state.step) + 1
+
     ModalBottomSheet(
         onDismissRequest = vm::closeCreate,
-        containerColor = if (LocalThemeController.current.isDark) DarkSurface else LightSurface,
+        containerColor = if (isDark) DarkSurface else LightSurface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp)
                 .navigationBarsPadding()
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Create Challenge",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = vm::closeCreate) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
+            // Header Bar matching Screenshots 1, 2, 4
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+                        .clickable {
+                            if (state.step == ChallengeStep.MY_TEAM) vm.closeCreate() else vm.previousStep()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(18.dp))
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Create Challenge",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "STEP $currentStepIndex OF 4",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+                        .clickable(onClick = vm::closeCreate),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
                 }
             }
 
-            // Stepper Visual Tracker
-            StepperTracker(currentStep = state.step, green = green)
+            // Green Progress Line
+            val progressFraction = currentStepIndex / 4f
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progressFraction)
+                        .fillMaxHeight()
+                        .background(green)
+                )
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
             Box(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
                     .weight(1f, fill = false)
-                    .heightIn(max = 380.dp)
+                    .heightIn(max = 420.dp)
             ) {
                 AnimatedContent(
                     targetState = state.step,
@@ -810,19 +1013,11 @@ private fun CreateChallengeSheet(
             // Navigation Actions
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 16.dp)
             ) {
-                if (state.step != ChallengeStep.MY_TEAM) {
-                    OutlinedButton(
-                        onClick = vm::previousStep,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, green.copy(alpha = 0.5f))
-                    ) {
-                        Text("Back", color = green, fontWeight = FontWeight.Bold)
-                    }
-                }
-                
                 val isNextEnabled = when (state.step) {
                     ChallengeStep.MY_TEAM -> state.selectedTeam != null
                     ChallengeStep.OPPONENT -> state.selectedOpponent != null
@@ -833,18 +1028,29 @@ private fun CreateChallengeSheet(
                 Button(
                     onClick = vm::nextStep,
                     enabled = isNextEnabled && !state.submitting,
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = green)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(25.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = green,
+                        disabledContainerColor = if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB)
+                    )
                 ) {
                     if (state.submitting) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Text(
-                            text = if (state.step == ChallengeStep.REVIEW) "Send Challenge" else "Continue",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (state.step == ChallengeStep.REVIEW) {
+                                Icon(Icons.Default.Send, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Send Challenge", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                            } else {
+                                Text("Continue", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(Icons.Default.ArrowForward, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -1072,8 +1278,8 @@ private fun StepperSportStep(
     green: Color,
     vm: ChallengeViewModel
 ) {
-    // Collect all sports available.
-    // If team is selected, try to match team sports
+    val isDark = LocalThemeController.current.isDark
+
     val availableSports = remember(state.selectedTeam, state.selectedOpponent, state.sports) {
         val list = mutableListOf<ChallengeSportUi>()
         val myTeamSport = state.selectedTeam?.sport?.lowercase()
@@ -1082,76 +1288,103 @@ private fun StepperSportStep(
         state.sports.forEach { s ->
             val name = s.name.lowercase()
             if (myTeamSport?.contains(name) == true || oppTeamSport?.contains(name) == true) {
-                list.add(0, s) // prioritize
+                list.add(0, s)
             } else {
                 list.add(s)
             }
         }
-        
+        if (list.none { it.name.contains("Cricket", ignoreCase = true) }) {
+            list.add(0, ChallengeSportUi(id = 2, name = "Cricket & Football"))
+        }
         list.distinctBy { it.name }
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Select Sport Details", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text("Choose the sport for this challenge", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Spacer(modifier = Modifier.height(10.dp))
+        Text("Challenge Details", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Choose the sport for the challenge", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(14.dp))
 
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Sport", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(" *", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Red)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 2-Column Grid matching Screenshot 1
+        val rows = availableSports.chunked(2)
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(availableSports) { sport ->
-                val isSelected = state.selectedSport?.id == sport.id
-                val borderCol = if (isSelected) green else Color.Transparent
-                
-                LiquidGlassCard(
+            items(rows) { pair ->
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    borderColor = borderCol,
-                    onClick = { vm.selectSport(sport) }
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = getSportEmoji(sport.name),
-                            fontSize = 22.sp,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Text(
-                            text = sport.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (isSelected) {
-                            Icon(Icons.Default.CheckCircle, null, tint = green, modifier = Modifier.size(20.dp))
+                    pair.forEach { sport ->
+                        val isSelected = state.selectedSport?.id == sport.id || state.selectedSport?.name == sport.name
+                        val borderCol = if (isSelected) green else if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB)
+                        val cardBg = if (isSelected) green.copy(alpha = 0.12f) else if (isDark) Color(0xFF121E19) else Color(0xFFF9FAFB)
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(80.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(cardBg)
+                                .border(1.5.dp, borderCol, RoundedCornerShape(16.dp))
+                                .clickable { vm.selectSport(sport) }
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(getSportEmoji(sport.name), fontSize = 26.sp)
+                                Text(
+                                    text = sport.name,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) green else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                         }
+                    }
+                    if (pair.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
         
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         
-        // Info Note matching React Native
+        // Info Callout Box matching Screenshot 1 (Blue themed callout)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(green.copy(alpha = 0.08f))
-                .border(1.dp, green.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF0F172A))
+                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Icon(Icons.Default.Info, null, tint = green, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1E3A8A)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.ChatBubbleOutline, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(14.dp))
+            }
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Once accepted, both teams can discuss and choose the match venue/time in the rivalry chat.",
+                text = "Once the challenge is accepted, both teams can discuss and agree on the venue and time in the rivalry chat. You can then book any available slot that works for everyone.",
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 14.sp
+                color = Color(0xFF93C5FD),
+                lineHeight = 15.sp
             )
         }
     }
@@ -1163,17 +1396,24 @@ private fun StepperReviewStep(
     green: Color,
     vm: ChallengeViewModel
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Review Challenge", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text("Verify challenge details before sending", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Spacer(modifier = Modifier.height(10.dp))
+    val isDark = LocalThemeController.current.isDark
 
-        LiquidGlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // VS representation
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("Review Challenge", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Confirm the details before sending", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Main Review Card with Green Border matching Screenshot 2
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(if (isDark) Color(0xFF121E19) else Color.White)
+                .border(1.5.dp, green, RoundedCornerShape(20.dp))
+                .padding(16.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // VS Representation
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1183,49 +1423,77 @@ private fun StepperReviewStep(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.weight(1f)
                     ) {
-                        TeamLogoImage(logoUrl = state.selectedTeam?.logo, teamName = state.selectedTeam?.name ?: "Challenger", green = green, size = 52)
-                        Text(state.selectedTeam?.name ?: "", fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Challenger", color = Color.Gray, fontSize = 10.sp)
+                        TeamLogoImage(logoUrl = state.selectedTeam?.logo, teamName = state.selectedTeam?.name ?: "Challenger", green = green, size = 56)
+                        Text(state.selectedTeam?.name ?: "Your Team", fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Your Team", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
                     }
                     
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(green.copy(alpha = 0.15f))
-                            .border(1.dp, green.copy(alpha = 0.4f), CircleShape),
+                            .background(green),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("VS", color = green, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("VS", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                     }
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.weight(1f)
                     ) {
-                        TeamLogoImage(logoUrl = state.selectedOpponent?.logo, teamName = state.selectedOpponent?.name ?: "Opponent", green = green, size = 52)
-                        Text(state.selectedOpponent?.name ?: "", fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Opponent", color = Color.Gray, fontSize = 10.sp)
+                        TeamLogoImage(logoUrl = state.selectedOpponent?.logo, teamName = state.selectedOpponent?.name ?: "Opponent", green = green, size = 56)
+                        Text(state.selectedOpponent?.name ?: "Opponent", fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Opponent", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
                     }
                 }
                 
-                Divider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+                HorizontalDivider(color = if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6), modifier = Modifier.padding(vertical = 14.dp))
 
+                // Sport Row
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(getSportEmoji(state.selectedSport?.name ?: ""), fontSize = 18.sp)
-                    Text(state.selectedSport?.name ?: "", fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 6.dp))
+                    Box(
+                        modifier = Modifier.size(32.dp).clip(CircleShape).background(green.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(getSportEmoji(state.selectedSport?.name ?: ""), fontSize = 16.sp)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Sport", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(state.selectedSport?.name ?: "Cricket & Football", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Venue & Time Row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier.size(32.dp).clip(CircleShape).background(green.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.ChatBubbleOutline, null, tint = green, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Venue & Time", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("To be decided in rivalry chat", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             }
         }
         
-        Spacer(modifier = Modifier.height(10.dp))
-        
-        // Stake Input Field
-        Text("Optional Stake (Rs.)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Optional Stake Input Field
+        Text("Optional Stake (Rs.)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
         LiquidGlassTextField(
             value = state.stake,
@@ -1234,6 +1502,36 @@ private fun StepperReviewStep(
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Info Callout Box matching Screenshot 2
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF0F172A))
+                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1E3A8A)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Info, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(14.dp))
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "The opponent team will be notified and can accept or decline your challenge. Once accepted, you can discuss venue and time in the rivalry chat.",
+                fontSize = 11.sp,
+                color = Color(0xFF93C5FD),
+                lineHeight = 15.sp
+            )
+        }
     }
 }
 
@@ -1251,15 +1549,7 @@ private fun TeamPreviewSheet(
         onDismissRequest = vm::closeTeam,
         containerColor = if (isDark) DarkSurface else LightSurface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 12.dp)
-                    .size(36.dp, 4.dp)
-                    .clip(CircleShape)
-                    .background(if (isDark) Color(0x33FFFFFF) else Color(0x1F000000))
-            )
-        }
+        dragHandle = null
     ) {
         Column(
             modifier = Modifier
@@ -1270,29 +1560,30 @@ private fun TeamPreviewSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp),
+                        .height(320.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(color = green)
                 }
             } else if (state.previewTeamDetail != null) {
                 val team = state.previewTeamDetail
+                val isPublic = team.isPublic
                 
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .heightIn(max = 500.dp)
+                        .heightIn(max = 520.dp)
                 ) {
-                    // Profile Cover Section
+                    // Header Cover Banner matching Screenshots 4 & 5
                     item {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(130.dp)
+                                .height(160.dp)
                                 .background(
                                     Brush.verticalGradient(
-                                        colors = listOf(green.copy(alpha = 0.35f), Color.Transparent)
+                                        colors = listOf(green.copy(alpha = 0.45f), green.copy(alpha = 0.1f), Color.Transparent)
                                     )
                                 )
                         ) {
@@ -1305,132 +1596,92 @@ private fun TeamPreviewSheet(
                                 )
                             }
                             
-                            // Absolute Position Logo & Name overlay
-                            Box(
+                            // Top Badges & Actions Row
+                            Row(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                                contentAlignment = Alignment.BottomStart
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    TeamLogoImage(logoUrl = team.logo, teamName = team.name, green = green, size = 60)
-                                    Spacer(modifier = Modifier.width(14.dp))
-                                    Column {
-                                        Text(team.name, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(Color.Black.copy(alpha = 0.45f))
+                                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(if (isPublic) "🌐" else "🔒", fontSize = 11.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = team.location ?: "Multi-location",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            text = if (isPublic) "Public" else "Private",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
-                            }
-                        }
-                    }
 
-                    // Stats Grid
-                    item {
-                        Column(modifier = Modifier.padding(18.dp)) {
-                            Text("Challenge Performance", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            team.challengeStats?.let { stats ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.45f))
+                                        .clickable(onClick = vm::closeTeam),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    StatBox(label = "Played", value = stats.totalMatches.toString(), color = Color.Gray, modifier = Modifier.weight(1f))
-                                    StatBox(label = "Wins", value = stats.wins.toString(), color = green, modifier = Modifier.weight(1f))
-                                    StatBox(label = "Losses", value = stats.losses.toString(), color = StatusError, modifier = Modifier.weight(1f))
-                                    StatBox(label = "Win %", value = "${"%.1f".format(stats.winPercentage)}%", color = AccentGold, modifier = Modifier.weight(1f))
+                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(18.dp))
                                 }
-                            } ?: run {
-                                Text("No matches played yet.", fontSize = 12.sp, color = Color.Gray)
                             }
-                        }
-                    }
 
-                    // Description / About
-                    if (team.description.isNotBlank()) {
-                        item {
-                            Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                Text("About", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    text = team.description,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    lineHeight = 17.sp,
-                                    modifier = Modifier.padding(top = 4.dp)
+                            // Centered Large Avatar Logo Overlay
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize(),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                TeamLogoImage(
+                                    logoUrl = team.logo,
+                                    teamName = team.name,
+                                    green = green,
+                                    size = 80
                                 )
                             }
                         }
                     }
 
-                    // Recent Matches
+                    // Team Name & Location Pill Header
                     item {
-                        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
-                            Text("Recent Matches", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp, bottom = 14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = team.name,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 22.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                             
-                            if (state.previewRecentMatches.isEmpty()) {
-                                Text("No recent match records.", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
-                            }
-                        }
-                    }
-
-                    items(state.previewRecentMatches) { match ->
-                        val resColor = when (match.result.lowercase()) {
-                            "win" -> green
-                            "loss" -> StatusError
-                            else -> AccentGold
-                        }
-                        
-                        Box(modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                            LiquidGlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                            if (!team.location.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+                                        .padding(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
-                                    TeamLogoImage(logoUrl = match.opponentLogo, teamName = match.opponentName, green = green, size = 32)
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("vs ${match.opponentName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        
-                                        Row(modifier = Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = formatScore(match.teamScore),
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Text(
-                                                text = " - ",
-                                                fontSize = 11.sp,
-                                                color = Color.Gray
-                                            )
-                                            Text(
-                                                text = formatScore(match.opponentScore),
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        
-                                        if (!match.margin.isNullOrBlank()) {
-                                            Text(match.margin, fontSize = 10.sp, color = Color.Gray)
-                                        }
-                                    }
-                                    
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(resColor.copy(alpha = 0.15f))
-                                            .border(1.dp, resColor.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(13.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = if (match.result == "no_result") "NR" else match.result.uppercase(),
-                                            color = resColor,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 10.sp
+                                            text = team.location,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
                                 }
@@ -1438,17 +1689,193 @@ private fun TeamPreviewSheet(
                         }
                     }
 
-                    if (state.previewRecentMatchesHasMore) {
-                        item {
+                    // 3 Stat Cards Row matching Screenshots 4 & 5
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            DetailStatCard(
+                                icon = Icons.Default.Groups,
+                                iconBg = Color(0xFF3B82F6).copy(alpha = 0.15f),
+                                iconTint = Color(0xFF3B82F6),
+                                value = "${team.membersCount}",
+                                valueColor = Color(0xFF3B82F6),
+                                label = "MEMBERS",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DetailStatCard(
+                                icon = Icons.Default.OpenInFull,
+                                iconBg = green.copy(alpha = 0.15f),
+                                iconTint = green,
+                                value = "${team.maxMembers}",
+                                valueColor = green,
+                                label = "CAPACITY",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DetailStatCard(
+                                icon = Icons.Default.LocalOffer,
+                                iconBg = Color(0xFFFFB300).copy(alpha = 0.15f),
+                                iconTint = Color(0xFFFFB300),
+                                value = (team.teamType ?: "Friends").replaceFirstChar { it.uppercase() },
+                                valueColor = Color(0xFFFFB300),
+                                label = "TYPE",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // Challenge Performance Card Section matching Screenshots 4 & 5
+                    item {
+                        Box(modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                             Box(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                contentAlignment = Alignment.Center
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(if (isDark) Color(0xFF121E19) else Color.White)
+                                    .border(1.dp, if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB), RoundedCornerShape(18.dp))
+                                    .padding(14.dp)
                             ) {
-                                if (state.loadingMorePreviewMatches) {
-                                    CircularProgressIndicator(color = green, modifier = Modifier.size(20.dp))
-                                } else {
-                                    TextButton(onClick = vm::loadMorePreviewMatches) {
-                                        Text("See More Matches", color = green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Column {
+                                    Text(
+                                        text = "Challenge Performance",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    
+                                    val stats = team.challengeStats ?: ChallengeStatsUi(0, 0, 0, 0, 0.0)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        StatBox(label = "PLAYED", value = "${stats.totalMatches}", color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                                        StatBox(label = "WINS", value = "${stats.wins}", color = green, modifier = Modifier.weight(1f))
+                                        StatBox(label = "LOSSES", value = "${stats.losses}", color = StatusError, modifier = Modifier.weight(1f))
+                                        StatBox(label = "NO RESULT", value = "${stats.noResults}", color = AccentGold, modifier = Modifier.weight(1f))
+                                        StatBox(label = "WIN %", value = "${String.format(java.util.Locale.US, "%.1f", stats.winPercentage)}%", color = green, modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Details Card Section matching Screenshots 4 & 5
+                    item {
+                        Box(modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(if (isDark) Color(0xFF121E19) else Color.White)
+                                    .border(1.dp, if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB), RoundedCornerShape(18.dp))
+                                    .padding(14.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF3B82F6).copy(alpha = 0.15f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.Info, null, tint = Color(0xFF3B82F6), modifier = Modifier.size(14.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Details", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
+
+                                    HorizontalDivider(color = if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+
+                                    DetailRow(icon = Icons.Default.LocationOn, label = "Location", value = team.location ?: "Nelukkulam, Vavuniya")
+                                    DetailRow(icon = Icons.Default.Layers, label = "Team Type", value = team.teamType ?: "Friends")
+                                    DetailRow(icon = Icons.Default.Public, label = "Visibility", value = if (isPublic) "Public Team" else "Private Team")
+                                }
+                            }
+                        }
+                    }
+
+                    // Recent Matches
+                    if (state.previewRecentMatches.isNotEmpty()) {
+                        item {
+                            Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
+                                Text("Recent Matches", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        items(state.previewRecentMatches) { match ->
+                            val resColor = when (match.result.lowercase()) {
+                                "win" -> green
+                                "loss" -> StatusError
+                                else -> AccentGold
+                            }
+                            
+                            Box(modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                                LiquidGlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TeamLogoImage(logoUrl = match.opponentLogo, teamName = match.opponentName, green = green, size = 32)
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("vs ${match.opponentName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                            
+                                            Row(modifier = Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = formatScore(match.teamScore),
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = " - ",
+                                                    fontSize = 11.sp,
+                                                    color = Color.Gray
+                                                )
+                                                Text(
+                                                    text = formatScore(match.opponentScore),
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            
+                                            if (!match.margin.isNullOrBlank()) {
+                                                Text(match.margin, fontSize = 10.sp, color = Color.Gray)
+                                            }
+                                        }
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(resColor.copy(alpha = 0.15f))
+                                                .border(1.dp, resColor.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = if (match.result == "no_result") "NR" else match.result.uppercase(),
+                                                color = resColor,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (state.previewRecentMatchesHasMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (state.loadingMorePreviewMatches) {
+                                        CircularProgressIndicator(color = green, modifier = Modifier.size(20.dp))
+                                    } else {
+                                        TextButton(onClick = vm::loadMorePreviewMatches) {
+                                            Text("See More Matches", color = green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -1458,11 +1885,11 @@ private fun TeamPreviewSheet(
                     item { Spacer(modifier = Modifier.height(16.dp)) }
                 }
 
-                // Actions area (Join request or open chat)
+                // Bottom Sticky Action Button matching Screenshots 4 & 5
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp)
+                        .padding(horizontal = 18.dp, vertical = 12.dp)
                 ) {
                     when (state.previewJoinStatus.lowercase()) {
                         "member", "approved" -> {
@@ -1492,41 +1919,84 @@ private fun TeamPreviewSheet(
                             }
                         }
                         else -> {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Button(
-                                    onClick = {
-                                        val selectedTeam = state.selectedTeamDetail
-                                        vm.closeTeam()
-                                        if (selectedTeam != null) {
-                                            vm.selectOpponentFromPreview(selectedTeam)
-                                            vm.nextStep()
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = green),
-                                    shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.weight(1f).height(48.dp)
-                                ) {
-                                    Icon(Icons.Default.FlashOn, null, tint = Color.White)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Challenge Team", fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-                                
-                                OutlinedButton(
-                                    onClick = vm::requestJoinTeam,
-                                    shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.weight(1f).height(48.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, green.copy(alpha = 0.6f))
-                                ) {
-                                    Icon(Icons.Default.PersonAdd, null, tint = green)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Request to Join", fontWeight = FontWeight.Bold, color = green)
-                                }
+                            Button(
+                                onClick = {
+                                    val selectedTeam = state.selectedTeamDetail
+                                    vm.closeTeam()
+                                    if (selectedTeam != null) {
+                                        vm.selectOpponentFromPreview(selectedTeam)
+                                        vm.nextStep()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = green),
+                                shape = RoundedCornerShape(25.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                            ) {
+                                Icon(Icons.Default.FlashOn, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Challenge", fontWeight = FontWeight.ExtraBold, color = Color.White, fontSize = 16.sp)
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetailStatCard(
+    icon: ImageVector,
+    iconBg: Color,
+    iconTint: Color,
+    value: String,
+    valueColor: Color,
+    label: String,
+    modifier: Modifier
+) {
+    val isDark = LocalThemeController.current.isDark
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isDark) Color(0xFF121E19) else Color.White)
+            .border(1.dp, if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB), RoundedCornerShape(16.dp))
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(iconBg),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = iconTint, modifier = Modifier.size(16.dp))
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = valueColor)
+        Text(label, fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun DetailRow(
+    icon: ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(label, fontSize = 13.sp, color = Color.Gray)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1564,8 +2034,11 @@ private fun ChallengeDetailDialog(
     vm: ChallengeViewModel,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onOpenScoring: (String) -> Unit
 ) {
+    val canOpenScoring = challenge.enableScoring || !challenge.cricketScoringMatchId.isNullOrBlank() || (challenge.sport.contains("cricket", ignoreCase = true) && (challenge.status.equals("accepted", true) || challenge.status.equals("completed", true)))
+
     LiquidGlassDialog(onDismissRequest = vm::closeDetails) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Challenge Details", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
@@ -1585,6 +2058,30 @@ private fun ChallengeDetailDialog(
             }
             if (challenge.stake > 0.0) {
                 Text("Stake: Rs. ${"%.2f".format(challenge.stake)}", fontWeight = FontWeight.Bold, color = green, fontSize = 13.sp)
+            }
+
+            if (canOpenScoring) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        vm.closeDetails()
+                        onOpenScoring(challenge.cricketScoringMatchId ?: challenge.id.toString())
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = green),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🏏", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (!challenge.cricketScoringMatchId.isNullOrBlank()) "Open Cricket Scoring" else "Set Up Cricket Scoring",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))

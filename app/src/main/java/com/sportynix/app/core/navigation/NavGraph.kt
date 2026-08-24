@@ -617,7 +617,11 @@ fun NavGraph(
             TeamScreen(onNavigateBack = { navController.popBackStack() }, onNavigateToChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) })
         }
         composable(Screen.Challenge.route) {
-            ChallengeScreen(onNavigateBack = { navController.popBackStack() }, onNavigateToChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) })
+            ChallengeScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
+                onNavigateToScoring = { matchId -> navController.navigate(Screen.LiveCricketScoring.createRoute(matchId)) }
+            )
         }
 
         composable(Screen.TeamInvitations.route) {

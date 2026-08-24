@@ -39,7 +39,8 @@ data class ChallengeTeamUi(
     val members: Int = 0,
     val location: String = "",
     val sport: String = "",
-    val description: String = ""
+    val description: String = "",
+    val challengeStats: ChallengeStatsUi? = null
 )
 
 data class ChallengeSportUi(
@@ -73,6 +74,10 @@ data class ChallengeUi(
     val canDecline: Boolean = false,
     val canCancel: Boolean = false,
     val chatId: String? = null,
+    val bookingId: Int? = null,
+    val enableScoring: Boolean = false,
+    val cricketScoringMatchId: String? = null,
+    val cricketScoringStatus: String? = null,
     val raw: JsonObject? = null
 )
 
@@ -956,7 +961,7 @@ class ChallengeViewModel @Inject constructor(
         _state.value = _state.value.copy(error = message)
     }
 
-    private fun getChallengeBlockReason(teamAId: Int?, teamBId: Int?): String? {
+    fun getChallengeBlockReason(teamAId: Int?, teamBId: Int?): String? {
         if (teamAId == null || teamBId == null) return null
         val pair = challengePairKey(teamAId, teamBId)
         val rel = _state.value.relationships[pair]
@@ -983,6 +988,16 @@ class ChallengeViewModel @Inject constructor(
         array(root).mapNotNull { e ->
             if (!e.isJsonObject) null else {
                 val o = e.asJsonObject
+                val statsObj = o.obj("challenge_stats")
+                val stats = statsObj?.let { s ->
+                    ChallengeStatsUi(
+                        totalMatches = s.int("total_matches") ?: 0,
+                        wins = s.int("wins") ?: 0,
+                        losses = s.int("losses") ?: 0,
+                        noResults = s.int("no_results") ?: 0,
+                        winPercentage = s.double("win_percentage") ?: 0.0
+                    )
+                }
                 ChallengeTeamUi(
                     id = o.int("id") ?: return@mapNotNull null,
                     name = o.string("name") ?: "Team",
@@ -990,7 +1005,8 @@ class ChallengeViewModel @Inject constructor(
                     members = o.int("members_count") ?: o.int("member_count") ?: 0,
                     location = o.string("location") ?: o.string("city") ?: "",
                     sport = o.string("sport_name") ?: "",
-                    description = o.string("description") ?: ""
+                    description = o.string("description") ?: "",
+                    challengeStats = stats
                 )
             }
         }
@@ -1017,6 +1033,13 @@ class ChallengeViewModel @Inject constructor(
         val sport = o.obj("sport")
         val venue = o.obj("venue")
         val status = o.string("status") ?: "pending"
+        val bookingObj = o.obj("booking")
+        val bookingId = bookingObj?.int("id") ?: o.int("booking")
+        val cricketScoringObj = o.obj("cricket_scoring") ?: bookingObj?.obj("cricket_scoring")
+        val enableScoring = o.bool("enable_scoring") ?: (cricketScoringObj != null)
+        val cricketMatchId = cricketScoringObj?.string("match_id") ?: cricketScoringObj?.string("id") ?: bookingObj?.string("cricket_match_id")
+        val cricketStatus = cricketScoringObj?.string("status")
+
         return ChallengeUi(
             id = o.int("id") ?: 0,
             challenger = challenger?.string("name") ?: o.string("challenger_name") ?: "My team",
@@ -1034,6 +1057,10 @@ class ChallengeViewModel @Inject constructor(
             canDecline = o.bool("can_decline") ?: (status == "pending"),
             canCancel = o.bool("can_cancel") ?: (status == "pending"),
             chatId = extractChatId(o),
+            bookingId = bookingId,
+            enableScoring = enableScoring,
+            cricketScoringMatchId = cricketMatchId,
+            cricketScoringStatus = cricketStatus,
             raw = o
         )
     }

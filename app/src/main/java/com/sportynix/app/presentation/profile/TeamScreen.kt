@@ -309,6 +309,14 @@ fun TeamScreen(
         )
     }
 
+    if (state.invitePreview != null) {
+        TeamInviteResolveDialog(
+            state = state,
+            green = green,
+            vm = viewModel
+        )
+    }
+
     // Full Screen Image Preview Overlay
     if (state.previewImageUrl != null) {
         Dialog(
@@ -1441,15 +1449,21 @@ private fun TeamInfoScreen(
                             )
                             QuickActionButton(
                                 icon = Icons.Default.Schedule,
-                                label = "Pending\nMembers",
+                                label = "Pending\nRequests",
                                 color = Color(0xFFF59E0B),
                                 onClick = { showPendingRequestsSheet = true }
                             )
                             QuickActionButton(
-                                icon = Icons.Default.Chat,
-                                label = "Message\nTeam",
+                                icon = Icons.Default.Groups,
+                                label = "Group\nChat",
                                 color = Color(0xFFA855F7),
-                                onClick = { vm.openChat(team) }
+                                onClick = { vm.openChat(team, "team_group") }
+                            )
+                            QuickActionButton(
+                                icon = Icons.Default.Campaign,
+                                label = "Team\nChannel",
+                                color = Color(0xFF06B6D4),
+                                onClick = { vm.openChat(team, "team_channel") }
                             )
                             QuickActionButton(
                                 icon = Icons.Default.Link,
@@ -1465,10 +1479,16 @@ private fun TeamInfoScreen(
                                 onClick = { showAddMemberSheet = true }
                             )
                             QuickActionButton(
-                                icon = Icons.Default.Chat,
-                                label = "Message\nTeam",
+                                icon = Icons.Default.Groups,
+                                label = "Group\nChat",
                                 color = Color(0xFFA855F7),
-                                onClick = { vm.openChat(team) }
+                                onClick = { vm.openChat(team, "team_group") }
+                            )
+                            QuickActionButton(
+                                icon = Icons.Default.Campaign,
+                                label = "Team\nChannel",
+                                color = Color(0xFF06B6D4),
+                                onClick = { vm.openChat(team, "team_channel") }
                             )
                         }
                     }
@@ -1527,6 +1547,139 @@ private fun TeamInfoScreen(
                             value = team.role ?: "Member",
                             valueColor = if (isCaptain) Color(0xFFFFB300) else if (canManage) green else MaterialTheme.colorScheme.onSurface
                         )
+                    }
+                }
+
+                // Challenge Performance Card
+                if (team.challengeStats != null) {
+                    item {
+                        val stats = team.challengeStats!!
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(if (isDark) Color(0xFF131F1A) else Color.White)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB),
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = null,
+                                    tint = green,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Challenge Performance",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            HorizontalDivider(color = if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                PerformanceStatItem(label = "Played", value = "${stats.totalMatches}", green = green, modifier = Modifier.weight(1f))
+                                PerformanceStatItem(label = "Wins", value = "${stats.wins}", green = green, modifier = Modifier.weight(1f))
+                                PerformanceStatItem(label = "Losses", value = "${stats.losses}", green = StatusError, modifier = Modifier.weight(1f))
+                                PerformanceStatItem(label = "No result", value = "${stats.noResults}", green = AccentGold, modifier = Modifier.weight(1f))
+                                PerformanceStatItem(label = "Win %", value = "${String.format(java.util.Locale.US, "%.1f", stats.winPercentage)}%", green = green, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+
+                // Recent Matches Section
+                if (team.recentMatches.isNotEmpty() || team.recentMatchesCount > 0) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(if (isDark) Color(0xFF131F1A) else Color.White)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB),
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.SportsCricket,
+                                    contentDescription = null,
+                                    tint = green,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Recent Matches",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = green.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = "${team.recentMatches.size} / ${team.recentMatchesCount}",
+                                        color = green,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(color = if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6))
+
+                            if (team.recentMatches.isEmpty()) {
+                                Text(
+                                    text = "No recent match records.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            } else {
+                                team.recentMatches.forEach { match ->
+                                    RecentMatchRowItem(match = match, green = green)
+                                }
+                            }
+
+                            if (team.recentMatches.size < team.recentMatchesCount) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (state.loadingMoreMatches) {
+                                        CircularProgressIndicator(color = green, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        TextButton(onClick = { vm.loadMoreMatches(team.id) }) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("See more matches", color = green, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = green, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1922,6 +2075,7 @@ private fun AddMemberSheet(
 ) {
     val isDark = LocalThemeController.current.isDark
     val bgDark = if (isDark) Color(0xFF0D1612) else Color(0xFFF9FAFB)
+    val borderClr = if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1933,7 +2087,7 @@ private fun AddMemberSheet(
                 .fillMaxWidth()
                 .padding(bottom = 24.dp)
         ) {
-            // Gradient Header (Screenshot 5)
+            // Gradient Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1964,7 +2118,7 @@ private fun AddMemberSheet(
                         color = Color.White.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = "${state.members.size} Member",
+                            text = "${state.members.size} ${if (state.members.size == 1) "Member" else "Members"}",
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -1993,7 +2147,7 @@ private fun AddMemberSheet(
             ) {
                 Text("Invite New Members", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
-                // Search Input Field (Screenshot 5)
+                // Search Input Field
                 LiquidGlassSearchBar(
                     query = state.inviteSearchQuery,
                     onQueryChange = vm::onInviteQueryChanged,
@@ -2001,102 +2155,288 @@ private fun AddMemberSheet(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Option Card 1: Share Invite Link (Screenshot 5)
-                Surface(
-                    onClick = { vm.generateInvite(team) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (isDark) Color(0xFF131F1A) else Color.White,
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB))
+                // Success / Info Banner
+                AnimatedVisibility(
+                    visible = !state.inviteSuccessMessage.isNullOrBlank(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = green.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, green.copy(alpha = 0.3f))
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(green.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Link, contentDescription = null, tint = green, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Share Invite Link", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Text("Anyone with this link can join", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Icon(Icons.Default.Share, contentDescription = null, tint = green, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                // Option Card 2: Pending Members (Screenshot 5)
-                Surface(
-                    onClick = onOpenPending,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (isDark) Color(0xFF131F1A) else Color.White,
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFF59E0B).copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Pending Members", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Text("View and approve requests", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                // Searched Users Results
-                if (state.searchedUsers.isNotEmpty()) {
-                    Text("Search Results", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    state.searchedUsers.forEach { user ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = green, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = state.inviteSuccessMessage.orEmpty(),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = green
+                            )
+                        }
+                    }
+                }
+
+                // Loading search state
+                if (state.isSearchingUsers) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = green, modifier = Modifier.size(28.dp))
+                    }
+                } else if (state.inviteSearchQuery.isNotBlank() && state.searchedUsers.isEmpty()) {
+                    // Empty search result state
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 30.dp, bottom = 20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PersonOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "No users found",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Try searching by name, email or phone number",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                } else if (state.searchedUsers.isNotEmpty()) {
+                    // Search results list
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isDark) Color(0xFF131F1A) else Color.White,
+                        border = BorderStroke(1.dp, borderClr)
+                    ) {
+                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                            state.searchedUsers.forEachIndexed { index, user ->
+                                if (index > 0) {
+                                    HorizontalDivider(
+                                        color = if (isDark) Color(0xFF1E2E27) else Color(0xFFF3F4F6),
+                                        modifier = Modifier.padding(start = 64.dp)
+                                    )
+                                }
+                                SearchedUserRow(
+                                    user = user,
+                                    isInvited = state.invitedUserIds.contains(user.id),
+                                    isInviting = state.invitingUserId == user.id,
+                                    anyInviting = state.invitingUserId != null,
+                                    green = green,
+                                    onInvite = { vm.inviteUser(user) },
+                                    onCancelInvite = { vm.cancelInviteUser(user) }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Empty query state: Quick Option Cards
+                    Surface(
+                        onClick = { vm.generateInvite(team) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isDark) Color(0xFF131F1A) else Color.White,
+                        border = BorderStroke(1.dp, borderClr)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
-                                    .background(green),
+                                    .background(green.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(user.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Link, contentDescription = null, tint = green, modifier = Modifier.size(20.dp))
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(user.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                if (user.email.isNotBlank()) {
-                                    Text(user.email, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+                                Text("Share Invite Link", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Anyone with this link can join", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Button(
-                                onClick = { vm.invite(user) },
-                                shape = CircleShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = green),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Icon(Icons.Default.Share, contentDescription = null, tint = green, modifier = Modifier.size(18.dp))
                         }
+                    }
+
+                    Surface(
+                        onClick = onOpenPending,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isDark) Color(0xFF131F1A) else Color.White,
+                        border = BorderStroke(1.dp, borderClr)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF59E0B).copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Pending Members", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("View and approve requests", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchedUserRow(
+    user: SearchedUserUi,
+    isInvited: Boolean,
+    isInviting: Boolean,
+    anyInviting: Boolean,
+    green: Color,
+    onInvite: () -> Unit,
+    onCancelInvite: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // User Avatar
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(green),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!user.avatar.isNullOrBlank()) {
+                AsyncImage(
+                    model = user.avatar,
+                    contentDescription = user.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = user.name.take(1).uppercase(),
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Name & Info
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (user.email.isNotBlank()) {
+                Text(
+                    text = user.email,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                text = if (!user.allowDirectTeamAdd) "Needs approval before joining" else "Can be added directly",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (!user.allowDirectTeamAdd) Color(0xFFF59E0B) else green,
+                maxLines = 1
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // Dynamic Action Button (Add / Request vs Cancel)
+        if (isInvited) {
+            OutlinedButton(
+                onClick = onCancelInvite,
+                enabled = !anyInviting,
+                shape = CircleShape,
+                border = BorderStroke(1.dp, StatusError),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusError),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .width(82.dp)
+                    .height(34.dp)
+            ) {
+                if (isInviting) {
+                    CircularProgressIndicator(color = StatusError, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            val requiresApproval = !user.allowDirectTeamAdd
+            val btnColor = if (requiresApproval) Color(0xFFF59E0B) else green
+            Button(
+                onClick = onInvite,
+                enabled = !anyInviting,
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = btnColor),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .width(82.dp)
+                    .height(34.dp)
+            ) {
+                if (isInviting) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (requiresApproval) Icons.Default.Email else Icons.Default.PersonAdd,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (requiresApproval) "Request" else "Add",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -2113,62 +2453,462 @@ private fun PendingRequestsSheet(
     onDismiss: () -> Unit
 ) {
     val isDark = LocalThemeController.current.isDark
+    val bgDark = if (isDark) Color(0xFF0D1612) else Color(0xFFF9FAFB)
+    val cardBg = if (isDark) Color(0xFF131F1A) else Color.White
+    val borderClr = if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = if (isDark) Color(0xFF0D1612) else Color(0xFFF9FAFB),
+        containerColor = bgDark,
         shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(bottom = 24.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Pending Requests", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
+            // Header (Green Gradient matching Swift)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            if (isDark) listOf(Color(0xFF031B12), Color(0xFF0F5F3F), Color(0xFF16A34A))
+                            else listOf(Color(0xFF0F7A4A), Color(0xFF18A665), Color(0xFF31C86F))
+                        )
+                    )
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Pending Memberships", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.9f)
+                            ) {
+                                Text(
+                                    text = "${state.pendingRequests.size} items",
+                                    color = green,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = (state.selected?.name ?: "TEAM").uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f))
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
 
-            if (state.pending.isEmpty()) {
+            // Join Requests Subheader
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(cardBg)
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF3B82F6).copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.GroupAdd, contentDescription = null, tint = Color(0xFF3B82F6), modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Join Requests (${state.pendingRequests.size})",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Users requesting to join your team",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Body Content
+            if (state.isLoadingPending) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(32.dp),
+                        .padding(40.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No pending join requests", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    CircularProgressIndicator(color = green, modifier = Modifier.size(32.dp))
+                }
+            } else if (state.pendingRequests.isEmpty()) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Inbox,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "No Join Requests",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "No users are currently waiting to join.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
                 }
             } else {
-                state.pending.forEach { request ->
-                    Row(
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(state.pendingRequests, key = { it.id }) { req ->
+                        PendingRequestItemRow(
+                            req = req,
+                            isProcessing = state.processingMembershipId == req.id,
+                            anyProcessing = state.processingMembershipId != null,
+                            green = green,
+                            onApprove = { vm.approve(req) },
+                            onReject = { vm.reject(req) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PendingRequestItemRow(
+    req: TeamMembershipUi,
+    isProcessing: Boolean,
+    anyProcessing: Boolean,
+    green: Color,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    val isDark = LocalThemeController.current.isDark
+    val cardBg = if (isDark) Color(0xFF131F1A) else Color(0xFFFFFFFF)
+    val borderClr = if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB)
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = cardBg,
+        border = BorderStroke(1.dp, borderClr)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Avatar
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(green),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!req.avatar.isNullOrBlank()) {
+                        AsyncImage(
+                            model = req.avatar,
+                            contentDescription = req.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            text = req.name.take(1).uppercase(),
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = req.name,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (req.username.isNotBlank()) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "@${req.username}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Requested ${req.requestedAt.ifBlank { "Recently" }}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Approve / Reject Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Approve
+                Button(
+                    onClick = onApprove,
+                    enabled = !anyProcessing,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = green),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Approve", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Reject
+                OutlinedButton(
+                    onClick = onReject,
+                    enabled = !anyProcessing,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, borderClr),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Reject", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamInviteResolveDialog(
+    state: TeamState,
+    green: Color,
+    vm: TeamViewModel
+) {
+    val team = state.invitePreview ?: return
+    val isDark = LocalThemeController.current.isDark
+    val bg = if (isDark) DarkSurface else Color.White
+    val joinStatus = state.inviteResolveStatus ?: "none"
+    val isFull = state.inviteResolveIsFull
+
+    Dialog(
+        onDismissRequest = { vm.dismissInvitePreview() },
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .clip(RoundedCornerShape(20.dp)),
+            color = bg,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Close button
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    IconButton(onClick = { vm.dismissInvitePreview() }) {
+                        Icon(Icons.Default.Cancel, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                // Team Logo
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(green.copy(alpha = 0.15f))
+                        .border(1.dp, green, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!team.logo.isNullOrBlank()) {
+                        AsyncImage(
+                            model = team.logo,
+                            contentDescription = team.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(Icons.Default.Groups, contentDescription = null, tint = green, modifier = Modifier.size(36.dp))
+                    }
+                }
+
+                Text(
+                    text = team.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Text(
+                    text = "${team.membersCount} Members",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (team.description.isNotBlank()) {
+                    Text(
+                        text = team.description,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                HorizontalDivider(color = if (isDark) Color(0xFF1E2E27) else Color(0xFFE5E7EB))
+
+                if (!state.inviteResolveMessage.isNullOrBlank()) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = green, modifier = Modifier.size(36.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.inviteResolveMessage.orEmpty(),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                } else if (joinStatus == "member" || joinStatus == "approved") {
+                    Text(
+                        text = "You are already a member of this team.",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = green,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                } else if (joinStatus == "requested") {
+                    Text(
+                        text = "Your request to join this team is pending approval.",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFF59E0B),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                } else if (isFull) {
+                    Text(
+                        text = "This team is currently full.",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = StatusError,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                } else {
+                    Button(
+                        onClick = { vm.requestInviteJoin() },
+                        enabled = !state.saving,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = green),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(48.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(green),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(request.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(request.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Requested to join", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        IconButton(onClick = { vm.approve(request) }) {
-                            Icon(Icons.Default.Check, contentDescription = "Approve", tint = green)
-                        }
-                        IconButton(onClick = { vm.reject(request) }) {
-                            Icon(Icons.Default.Close, contentDescription = "Reject", tint = StatusError)
+                        if (state.saving) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Request to Join Team", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -4179,6 +4919,49 @@ private fun JoinTeamDetailsSheet(
                 )
             }
 
+            // Challenge Cricket Performance Section
+            if (team.challengeStats != null) {
+                val stats = team.challengeStats!!
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(cardBg)
+                        .border(1.dp, borderCol, RoundedCornerShape(18.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.EmojiEvents,
+                            contentDescription = null,
+                            tint = green,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Challenge Cricket Performance",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    HorizontalDivider(color = borderCol)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        PerformanceStatItem(label = "PLAYED", value = "${stats.totalMatches}", green = green, modifier = Modifier.weight(1f))
+                        PerformanceStatItem(label = "WINS", value = "${stats.wins}", green = green, modifier = Modifier.weight(1f))
+                        PerformanceStatItem(label = "LOSSES", value = "${stats.losses}", green = StatusError, modifier = Modifier.weight(1f))
+                        PerformanceStatItem(label = "NO RESULT", value = "${stats.noResults}", green = AccentGold, modifier = Modifier.weight(1f))
+                        PerformanceStatItem(label = "WIN %", value = "${String.format(java.util.Locale.US, "%.1f", stats.winPercentage)}%", green = green, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+
             // Details Card Section (Screenshot 5)
             Column(
                 modifier = Modifier
@@ -4257,6 +5040,121 @@ private fun JoinTeamDetailsSheet(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PerformanceStatItem(
+    label: String,
+    value: String,
+    green: Color,
+    modifier: Modifier = Modifier
+) {
+    val isDark = LocalThemeController.current.isDark
+    val bg = if (isDark) Color(0xFF0D1612) else Color(0xFFF9FAFB)
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg)
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = green)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun RecentMatchRowItem(
+    match: RecentMatchUi,
+    green: Color
+) {
+    val resColor = when (match.result.lowercase()) {
+        "win" -> green
+        "loss" -> StatusError
+        else -> AccentGold
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Opponent Avatar
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(green.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!match.opponentLogo.isNullOrBlank()) {
+                AsyncImage(
+                    model = match.opponentLogo,
+                    contentDescription = match.opponentName,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = match.opponentName.take(1).uppercase(),
+                    color = green,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "vs ${match.opponentName}",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val scoreString = buildString {
+                match.teamScore?.let { append("${it.runs}/${it.wickets} (${it.overs})") }
+                if (match.teamScore != null && match.opponentScore != null) append(" — ")
+                match.opponentScore?.let { append("${it.runs}/${it.wickets} (${it.overs})") }
+            }
+            if (scoreString.isNotBlank()) {
+                Text(
+                    text = scoreString,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (match.margin.isNotBlank()) {
+                Text(
+                    text = match.margin,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = resColor.copy(alpha = 0.12f),
+            border = BorderStroke(1.dp, resColor.copy(alpha = 0.3f))
+        ) {
+            Text(
+                text = if (match.result == "no_result") "NR" else match.result.uppercase(),
+                color = resColor,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
         }
     }
 }

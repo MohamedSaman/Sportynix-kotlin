@@ -99,13 +99,10 @@ class MessagesListViewModel @Inject constructor(
     }
 
     fun loadConversations(isRefreshing: Boolean = false) {
-        if (conversationsJob?.isActive == true) {
-            if (isRefreshing) debouncedRefresh()
-            return
-        }
+        conversationsJob?.cancel()
         conversationsJob = viewModelScope.launch {
             if (isRefreshing) _uiState.update { it.copy(isRefreshing = true) }
-            else _uiState.update { it.copy(isLoading = true) }
+            else if (_uiState.value.conversations.isEmpty()) _uiState.update { it.copy(isLoading = true) }
 
             chatRepository.getMyChatsCachedFirst().collect { chats ->
                 val sorted = chats.sortedByDescending { chat ->
@@ -115,7 +112,7 @@ class MessagesListViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         conversations = sorted,
-                        unreadCount = totalUnread,
+                        unreadCount = if (totalUnread > 0) totalUnread else it.unreadCount,
                         isLoading = false,
                         isRefreshing = false
                     )
@@ -163,6 +160,29 @@ class MessagesListViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             val channelsRes = chatRepository.discoverChannels(_uiState.value.searchQuery)
+            
+            // Load user's own team IDs to exclude them from discover
+            val myTeamIds = runCatching {
+                val resp = teamApi.myTeams()
+                if (resp.isSuccessful && resp.body() != null) {
+                    val root = resp.body()!!
+                    val array = when {
+                        root.isJsonArray -> root.asJsonArray
+                        root.isJsonObject && root.asJsonObject.has("results") -> root.asJsonObject.getAsJsonArray("results")
+                        root.isJsonObject && root.asJsonObject.has("teams") -> root.asJsonObject.getAsJsonArray("teams")
+                        else -> com.google.gson.JsonArray()
+                    }
+                    array.mapNotNull { element ->
+                        if (element.isJsonObject) {
+                            val obj = element.asJsonObject
+                            val id = if (obj.has("id")) obj.get("id").asLong else null
+                            val role = obj.get("role")
+                            if (id != null && role != null && !role.isJsonNull) id else null
+                        } else null
+                    }.toSet()
+                } else emptySet()
+            }.getOrElse { emptySet() }
+
             val teams = runCatching {
                 val response = teamApi.discoverTeams()
                 if (!response.isSuccessful || response.body() == null) emptyList() else {
@@ -171,16 +191,22 @@ class MessagesListViewModel @Inject constructor(
                         root.isJsonArray -> root.asJsonArray
                         root.isJsonObject && root.asJsonObject.has("results") -> root.asJsonObject.getAsJsonArray("results")
                         root.isJsonObject && root.asJsonObject.has("teams") -> root.asJsonObject.getAsJsonArray("teams")
+                        root.isJsonObject && root.asJsonObject.has("data") -> root.asJsonObject.getAsJsonArray("data")
                         else -> com.google.gson.JsonArray()
                     }
                     val type = object : TypeToken<List<DiscoverTeam>>() {}.type
-                    gson.fromJson<List<DiscoverTeam>>(array, type)
+                    val list = gson.fromJson<List<DiscoverTeam>>(array, type) ?: emptyList()
+                    list.filter { team ->
+                        val isMemberOrApproved = team.joinStatus.equals("member", true) || team.joinStatus.equals("approved", true)
+                        !isMemberOrApproved && !myTeamIds.contains(team.id)
+                    }
                 }
             }.getOrElse { emptyList() }
+
             channelsRes.onSuccess { channels ->
                 _uiState.update { it.copy(discoverChannels = channels, discoverTeams = teams, isLoading = false) }
-            }.onFailure {
-                _uiState.update { it.copy(discoverTeams = teams, isLoading = false, errorMessage = it.errorMessage ?: "Unable to load channels") }
+            }.onFailure { err ->
+                _uiState.update { it.copy(discoverTeams = teams, isLoading = false, errorMessage = err.message ?: "Unable to load channels") }
             }
         }
     }
@@ -262,6 +288,9 @@ class MessagesListViewModel @Inject constructor(
         viewModelScope.launch {
             webSocketManager.unreadCountsState.collect { (messagesCount, _) ->
                 _uiState.update { it.copy(unreadCount = messagesCount) }
+                if (messagesCount > 0 && _uiState.value.conversations.isEmpty()) {
+                    debouncedRefresh(0)
+                }
             }
         }
         viewModelScope.launch {

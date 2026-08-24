@@ -32,7 +32,10 @@ interface TeamApiService {
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 5
     ): Response<JsonElement>
-    @POST("api/teams/{id}/get_team_chat/") suspend fun teamChat(@Path("id") id: Int): Response<JsonElement>
+    @POST("api/teams/{id}/get_team_chat/") suspend fun teamChat(
+        @Path("id") id: Int,
+        @Query("chat_type") chatType: String? = null
+    ): Response<JsonElement>
     @GET("api/teams/{id}/pending_members/") suspend fun pendingMembers(@Path("id") id: Int): Response<JsonElement>
     @GET("api/teams/{id}/search_members/") suspend fun searchMembers(@Path("id") id: Int, @Query("q") query: String): Response<JsonElement>
     @GET("api/teams/{id}/join_status/") suspend fun joinStatus(@Path("id") id: Int): Response<JsonElement>

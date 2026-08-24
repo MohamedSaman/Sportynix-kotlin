@@ -33,7 +33,10 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideGson(): Gson {
-        return GsonBuilder().create()
+        return GsonBuilder()
+            .registerTypeAdapter(com.sportynix.app.domain.model.LastMessage::class.java, com.sportynix.app.domain.model.LastMessageDeserializer())
+            .registerTypeAdapter(com.sportynix.app.domain.model.TeamSimple::class.java, com.sportynix.app.domain.model.TeamSimpleDeserializer())
+            .create()
     }
 
     @Provides

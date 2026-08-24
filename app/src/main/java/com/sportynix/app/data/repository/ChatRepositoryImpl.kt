@@ -59,20 +59,36 @@ class ChatRepositoryImpl @Inject constructor(
 
             val element = response.body()!!
             val allChats = mutableListOf<Chat>()
-
             val hiddenIds = dao.getHiddenChatIds().toSet()
 
+            fun parseArray(array: com.google.gson.JsonArray) {
+                for (item in array) {
+                    if (item.isJsonObject) {
+                        try {
+                            val chat = gson.fromJson(item, Chat::class.java)
+                            if (chat != null && chat.id != 0L) {
+                                allChats.add(chat)
+                            }
+                        } catch (e: Exception) {
+                            Timber.w(e, "Skipping corrupted chat item: $item")
+                        }
+                    }
+                }
+            }
+
             if (element.isJsonArray) {
-                val listType = object : TypeToken<List<Chat>>() {}.type
-                val list = gson.fromJson<List<Chat>>(element.asJsonArray, listType)
-                allChats.addAll(list)
+                parseArray(element.asJsonArray)
             } else if (element.isJsonObject) {
                 val obj = element.asJsonObject
-                listOf("team_groups", "channels", "direct_messages", "rivalry_chats", "challenge_chats", "rivalries", "challenges").forEach { key ->
+                val knownKeys = listOf("team_groups", "channels", "direct_messages", "rivalry_chats", "challenge_chats", "rivalries", "challenges", "results", "chats", "data", "my_chats")
+                knownKeys.forEach { key ->
                     if (obj.has(key) && obj.get(key).isJsonArray) {
-                        val listType = object : TypeToken<List<Chat>>() {}.type
-                        val list = gson.fromJson<List<Chat>>(obj.getAsJsonArray(key), listType)
-                        allChats.addAll(list)
+                        parseArray(obj.getAsJsonArray(key))
+                    }
+                }
+                obj.entrySet().forEach { (k, valElement) ->
+                    if (!knownKeys.contains(k) && valElement.isJsonArray) {
+                        parseArray(valElement.asJsonArray)
                     }
                 }
             }
