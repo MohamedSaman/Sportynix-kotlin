@@ -711,12 +711,25 @@ fun NavGraph(
         }
 
         composable(Screen.LeagueList.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
             com.sportynix.app.presentation.leagues.LeagueListScreen(
                 onNavigateToDetail = { leagueId ->
                     navController.navigate(Screen.LeagueDetail.createRoute(leagueId))
                 },
                 onNavigateToCreate = {
                     navController.navigate(Screen.LeagueCreate.createRoute())
+                },
+                onNavigateToTournamentDetail = { tournamentId ->
+                    navController.navigate(Screen.TournamentDetail.createRoute(tournamentId))
+                },
+                onNavigateToCreateTournament = {
+                    android.widget.Toast.makeText(context, "Tournament creation coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                onNavigateToMatchDetails = { matchId ->
+                    navController.navigate(Screen.MatchDetails.createRoute(matchId))
+                },
+                onNavigateToLiveMatchScoring = { matchId ->
+                    navController.navigate(Screen.LiveCricketScoring.createRoute(matchId))
                 }
             )
         }

@@ -86,6 +86,17 @@ class LeagueRepository @Inject constructor(
         }
     }
 
+    suspend fun deleteLeague(leagueId: String): ApiResult<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                apiService.deleteLeague(leagueId)
+                ApiResult.Success(Unit)
+            } catch (e: Exception) {
+                ApiResult.Error(message = e.message ?: "Failed to delete league")
+            }
+        }
+    }
+
     suspend fun publishLeague(leagueId: String): ApiResult<Unit> {
         return withContext(Dispatchers.IO) {
             try {

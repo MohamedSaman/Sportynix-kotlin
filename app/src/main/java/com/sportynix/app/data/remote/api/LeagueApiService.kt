@@ -44,6 +44,9 @@ interface LeagueApiService {
         @Part banner: MultipartBody.Part? = null
     ): FullLeagueDto
 
+    @DELETE("api/league/leagues/{id}/")
+    suspend fun deleteLeague(@Path("id") leagueId: String): Response<Unit>
+
     @POST("api/league/leagues/{id}/publish/")
     suspend fun publishLeague(@Path("id") leagueId: String): Response<JsonElement>
 
