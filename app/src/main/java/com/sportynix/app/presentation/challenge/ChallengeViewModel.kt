@@ -288,10 +288,11 @@ class ChallengeViewModel @Inject constructor(
     }
 
     fun openCreate() {
+        val defaultTeam = _state.value.myTeams.firstOrNull()
         _state.value = _state.value.copy(
             creating = true,
             step = ChallengeStep.MY_TEAM,
-            selectedTeam = null,
+            selectedTeam = defaultTeam,
             selectedOpponent = null,
             selectedSport = null,
             selectedVenue = null,
@@ -308,11 +309,13 @@ class ChallengeViewModel @Inject constructor(
     }
 
     fun selectOpponentFromPreview(team: ChallengeTeamUi) {
+        val defaultTeam = _state.value.myTeams.firstOrNull()
+        val hasSingleTeam = _state.value.myTeams.size == 1
         _state.value = _state.value.copy(
             creating = true,
-            step = ChallengeStep.MY_TEAM,
+            step = if (hasSingleTeam && defaultTeam != null) ChallengeStep.SPORT else ChallengeStep.MY_TEAM,
             selectedOpponent = team,
-            selectedTeam = null,
+            selectedTeam = defaultTeam,
             selectedSport = null,
             selectedVenue = null,
             slots = emptyList(),
@@ -327,29 +330,29 @@ class ChallengeViewModel @Inject constructor(
         when (s.step) {
             ChallengeStep.MY_TEAM -> {
                 if (s.selectedTeam != null) {
-                    _state.value = s.copy(step = ChallengeStep.OPPONENT)
+                    _state.value = s.copy(step = if (s.selectedOpponent != null) ChallengeStep.SPORT else ChallengeStep.OPPONENT)
                 } else {
-                    fail("Please select your team")
+                    fail("Please select your team to issue this challenge.")
                 }
             }
             ChallengeStep.OPPONENT -> {
                 if (s.selectedOpponent != null) {
                     val blockReason = getChallengeBlockReason(s.selectedTeam?.id, s.selectedOpponent.id)
                     if (blockReason != null) {
-                        val helperMsg = if (blockReason == "existing") "Already in challenge" else "Pending challenge already exists"
+                        val helperMsg = if (blockReason == "existing") "You already have an active rivalry or chat with this team." else "A pending challenge already exists with this team."
                         fail(helperMsg)
                     } else {
                         _state.value = s.copy(step = ChallengeStep.SPORT)
                     }
                 } else {
-                    fail("Please select an opponent team")
+                    fail("Please select an opponent team.")
                 }
             }
             ChallengeStep.SPORT -> {
                 if (s.selectedSport != null) {
                     _state.value = s.copy(step = ChallengeStep.REVIEW)
                 } else {
-                    fail("Please select a sport")
+                    fail("Please choose a sport for the challenge.")
                 }
             }
             ChallengeStep.REVIEW -> submit()
@@ -358,10 +361,11 @@ class ChallengeViewModel @Inject constructor(
 
     fun previousStep() {
         val s = _state.value
+        val hasSingleTeam = s.myTeams.size == 1
         _state.value = s.copy(
             step = when (s.step) {
                 ChallengeStep.OPPONENT -> ChallengeStep.MY_TEAM
-                ChallengeStep.SPORT -> ChallengeStep.OPPONENT
+                ChallengeStep.SPORT -> if (hasSingleTeam && s.selectedOpponent != null) ChallengeStep.OPPONENT else if (s.selectedOpponent != null) ChallengeStep.MY_TEAM else ChallengeStep.OPPONENT
                 ChallengeStep.REVIEW -> ChallengeStep.SPORT
                 else -> ChallengeStep.MY_TEAM
             }

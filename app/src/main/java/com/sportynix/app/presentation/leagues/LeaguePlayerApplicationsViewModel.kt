@@ -18,7 +18,12 @@ data class ApplicationsUiState(
     val applications: List<LeaguePlayerApplicationDto> = emptyList(),
     val filteredApplications: List<LeaguePlayerApplicationDto> = emptyList(),
     val selectedFilter: String = "pending", // all, pending, approved, rejected
+    val searchQuery: String = "",
     val selectedAppIds: Set<String> = emptySet(),
+    val totalCount: Int = 0,
+    val pendingCount: Int = 0,
+    val approvedCount: Int = 0,
+    val rejectedCount: Int = 0,
     val error: String? = null,
     val successMessage: String? = null
 )
@@ -44,10 +49,20 @@ class LeaguePlayerApplicationsViewModel @Inject constructor(
 
             when (val res = leagueRepository.getLeaguePlayerApplications(leagueId)) {
                 is ApiResult.Success -> {
+                    val apps = res.data
+                    val total = apps.size
+                    val pending = apps.count { it.status.equals("pending", ignoreCase = true) }
+                    val approved = apps.count { it.status.equals("approved", ignoreCase = true) }
+                    val rejected = apps.count { it.status.equals("rejected", ignoreCase = true) }
+
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isRefreshing = false,
-                        applications = res.data,
+                        applications = apps,
+                        totalCount = total,
+                        pendingCount = pending,
+                        approvedCount = approved,
+                        rejectedCount = rejected,
                         selectedAppIds = emptySet()
                     )
                     applyFilter()
@@ -64,6 +79,11 @@ class LeaguePlayerApplicationsViewModel @Inject constructor(
         }
     }
 
+    fun setSearchQuery(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        applyFilter()
+    }
+
     fun setFilter(filter: String) {
         _uiState.value = _uiState.value.copy(selectedFilter = filter)
         applyFilter()
@@ -71,11 +91,28 @@ class LeaguePlayerApplicationsViewModel @Inject constructor(
 
     private fun applyFilter() {
         val state = _uiState.value
-        val list = if (state.selectedFilter == "all") {
+        val query = state.searchQuery.trim().lowercase()
+
+        var list = if (state.selectedFilter == "all") {
             state.applications
         } else {
-            state.applications.filter { it.status.lowercase() == state.selectedFilter.lowercase() }
+            state.applications.filter { it.status.equals(state.selectedFilter, ignoreCase = true) }
         }
+
+        if (query.isNotEmpty()) {
+            list = list.filter { app ->
+                val name = (app.user.fullName ?: app.user.name ?: "").lowercase()
+                val username = (app.user.username ?: "").lowercase()
+                val role = (app.cricketPrimaryRole ?: "").lowercase()
+                val variant = (app.cricketPreferredVariant ?: "").lowercase()
+                val pos = (app.cricketPlayingPosition ?: "").lowercase()
+                val note = (app.applicationNote ?: "").lowercase()
+
+                name.contains(query) || username.contains(query) || role.contains(query) ||
+                        variant.contains(query) || pos.contains(query) || note.contains(query)
+            }
+        }
+
         _uiState.value = state.copy(filteredApplications = list)
     }
 
@@ -89,9 +126,12 @@ class LeaguePlayerApplicationsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(selectedAppIds = current)
     }
 
-    fun selectAllFiltered() {
-        val allIds = _uiState.value.filteredApplications.map { it.id }.toSet()
-        _uiState.value = _uiState.value.copy(selectedAppIds = allIds)
+    fun selectAllPending() {
+        val pendingIds = _uiState.value.filteredApplications
+            .filter { it.status.equals("pending", ignoreCase = true) }
+            .map { it.id }
+            .toSet()
+        _uiState.value = _uiState.value.copy(selectedAppIds = pendingIds)
     }
 
     fun clearSelection() {
@@ -103,7 +143,7 @@ class LeaguePlayerApplicationsViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             when (val res = leagueRepository.reviewApplication(appId, status, note)) {
                 is ApiResult.Success -> {
-                    _uiState.value = _uiState.value.copy(successMessage = "Application marked as $status")
+                    _uiState.value = _uiState.value.copy(successMessage = "Application ${status.lowercase()}")
                     currentLeagueId?.let { loadApplications(it) }
                 }
                 is ApiResult.Error -> {
@@ -123,7 +163,7 @@ class LeaguePlayerApplicationsViewModel @Inject constructor(
             when (val res = leagueRepository.bulkReviewApplications(selected, status, note)) {
                 is ApiResult.Success -> {
                     _uiState.value = _uiState.value.copy(
-                        successMessage = "${selected.size} applications marked as $status"
+                        successMessage = "${selected.size} applications ${status.lowercase()}"
                     )
                     currentLeagueId?.let { loadApplications(it) }
                 }

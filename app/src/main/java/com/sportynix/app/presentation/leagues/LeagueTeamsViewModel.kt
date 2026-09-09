@@ -16,8 +16,12 @@ import javax.inject.Inject
 
 data class TeamDetailUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val team: FullLeagueTeamDto? = null,
     val squad: List<SquadMemberDto> = emptyList(),
+    val filteredSquad: List<SquadMemberDto> = emptyList(),
+    val squadSearchQuery: String = "",
+    val squadRoleFilter: String = "all", // all, captain, batsman, bowler, all-rounder, etc.
     val error: String? = null,
     val successMessage: String? = null,
     val canManage: Boolean = false,
@@ -27,10 +31,14 @@ data class TeamDetailUiState(
     val targetUserId: String = "",
     val jerseyNumber: Int? = null,
     val role: String = "player", // captain, vice_captain, player, coach, manager
+    val playingPosition: String = "Batsman",
 
     // Co-Admin Dialog
     val showCoAdminModal: Boolean = false,
-    val coAdminUserId: String = ""
+    val coAdminUserId: String = "",
+
+    // Role Edit Dialog
+    val selectedMemberForEdit: SquadMemberDto? = null
 )
 
 @HiltViewModel
@@ -43,26 +51,78 @@ class LeagueTeamsViewModel @Inject constructor(
 
     private var currentTeamId: String? = null
 
-    fun loadTeamDetail(teamId: String) {
+    fun loadTeamDetail(teamId: String, isRefresh: Boolean = false) {
         currentTeamId = teamId
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            if (isRefresh) {
+                _uiState.value = _uiState.value.copy(isRefreshing = true, error = null)
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            }
             when (val res = leagueRepository.getLeagueTeamDetail(teamId)) {
                 is ApiResult.Success -> {
                     val t = res.data
+                    val squadList = t.squad ?: emptyList()
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         team = t,
-                        squad = t.squad ?: emptyList(),
+                        squad = squadList,
                         canManage = t.canManageTeam ?: t.isCaptain ?: t.isCoAdmin ?: t.isLeagueCreator ?: false
                     )
+                    applySquadFilter()
                 }
                 is ApiResult.Error -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = res.message)
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        error = res.message ?: "Failed to load team details"
+                    )
                 }
                 else -> {}
             }
         }
+    }
+
+    fun setSquadSearchQuery(query: String) {
+        _uiState.value = _uiState.value.copy(squadSearchQuery = query)
+        applySquadFilter()
+    }
+
+    fun setSquadRoleFilter(filter: String) {
+        _uiState.value = _uiState.value.copy(squadRoleFilter = filter)
+        applySquadFilter()
+    }
+
+    private fun applySquadFilter() {
+        val state = _uiState.value
+        val query = state.squadSearchQuery.trim().lowercase()
+
+        var list = when (state.squadRoleFilter.lowercase()) {
+            "all" -> state.squad
+            "captains" -> state.squad.filter {
+                it.role.equals("captain", ignoreCase = true) || it.role.equals("vice_captain", ignoreCase = true)
+            }
+            else -> state.squad.filter {
+                it.role.equals(state.squadRoleFilter, ignoreCase = true) ||
+                        (it.playingPosition ?: "").contains(state.squadRoleFilter, ignoreCase = true)
+            }
+        }
+
+        if (query.isNotEmpty()) {
+            list = list.filter { member ->
+                val name = (member.user.fullName ?: member.user.name ?: "").lowercase()
+                val username = (member.user.username ?: "").lowercase()
+                val role = member.role.lowercase()
+                val pos = (member.playingPosition ?: "").lowercase()
+                val jersey = member.jerseyNumber?.toString() ?: ""
+
+                name.contains(query) || username.contains(query) || role.contains(query) ||
+                        pos.contains(query) || jersey.contains(query)
+            }
+        }
+
+        _uiState.value = state.copy(filteredSquad = list)
     }
 
     fun toggleAddPlayerModal(show: Boolean) {
@@ -73,7 +133,11 @@ class LeagueTeamsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showCoAdminModal = show)
     }
 
-    fun addPlayerToSquad(userId: String, jersey: Int?, role: String) {
+    fun selectMemberForEdit(member: SquadMemberDto?) {
+        _uiState.value = _uiState.value.copy(selectedMemberForEdit = member)
+    }
+
+    fun addPlayerToSquad(userId: String, jersey: Int?, role: String, playingPosition: String? = null) {
         val teamId = currentTeamId ?: return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
@@ -81,6 +145,9 @@ class LeagueTeamsViewModel @Inject constructor(
                 addProperty("user_id", userId)
                 if (jersey != null) addProperty("jersey_number", jersey)
                 addProperty("role", role)
+                if (!playingPosition.isNullOrBlank()) {
+                    addProperty("playing_position", playingPosition)
+                }
             }
 
             when (val res = leagueRepository.addSquadMember(teamId, body)) {
@@ -116,18 +183,24 @@ class LeagueTeamsViewModel @Inject constructor(
         }
     }
 
-    fun updatePlayerRole(memberId: String, newRole: String, jersey: Int?) {
+    fun updatePlayerRole(memberId: String, newRole: String, jersey: Int?, playingPosition: String? = null) {
         val teamId = currentTeamId ?: return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             val body = JsonObject().apply {
                 addProperty("role", newRole)
                 if (jersey != null) addProperty("jersey_number", jersey)
+                if (!playingPosition.isNullOrBlank()) {
+                    addProperty("playing_position", playingPosition)
+                }
             }
 
             when (val res = leagueRepository.updateSquadMember(teamId, memberId, body)) {
                 is ApiResult.Success -> {
-                    _uiState.value = _uiState.value.copy(successMessage = "Squad member role updated")
+                    _uiState.value = _uiState.value.copy(
+                        selectedMemberForEdit = null,
+                        successMessage = "Squad member updated"
+                    )
                     loadTeamDetail(teamId)
                 }
                 is ApiResult.Error -> {
