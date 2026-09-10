@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
 import com.sportynix.app.data.remote.dto.FullLeagueDto
-import com.sportynix.app.data.remote.dto.TournamentDto
+import com.sportynix.app.data.remote.dto.FullTournamentDto
 import com.sportynix.app.data.remote.websocket.AllLiveMatchesWebSocketService
 import com.sportynix.app.data.remote.websocket.LiveMatchWSEvent
 import com.sportynix.app.data.repository.LeagueRepository
@@ -36,7 +36,7 @@ data class LeagueListUiState(
     val selectedLeagueSort: String = "Default",
 
     // Tournaments tab
-    val tournaments: List<TournamentDto> = emptyList(),
+    val tournaments: List<FullTournamentDto> = emptyList(),
     val tournamentStatusFilter: String = "All",
     val cricketVariantFilter: String = "All",
     val formatFilter: String = "All",

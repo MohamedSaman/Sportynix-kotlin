@@ -723,7 +723,7 @@ fun NavGraph(
                     navController.navigate(Screen.TournamentDetail.createRoute(tournamentId))
                 },
                 onNavigateToCreateTournament = {
-                    android.widget.Toast.makeText(context, "Tournament creation coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+                    navController.navigate(Screen.TournamentCreate.route)
                 },
                 onNavigateToMatchDetails = { matchId ->
                     navController.navigate(Screen.MatchDetails.createRoute(matchId))
@@ -799,6 +799,50 @@ fun NavGraph(
             com.sportynix.app.presentation.leagues.LeagueAuctionScreen(
                 leagueId = auctionId,
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.TournamentList.route) {
+            com.sportynix.app.presentation.tournaments.TournamentListScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToTournamentDetail = { tId ->
+                    navController.navigate(Screen.TournamentDetail.createRoute(tId))
+                },
+                onNavigateToCreateTournament = {
+                    navController.navigate(Screen.TournamentCreate.route)
+                }
+            )
+        }
+
+        composable(
+            route = Screen.TournamentDetail.route,
+            arguments = listOf(navArgument("tournamentId") { type = NavType.StringType }),
+            deepLinks = listOf(
+                navDeepLink { uriPattern = "sportynix://tournament?id={tournamentId}" },
+                navDeepLink { uriPattern = "sportynix://tournament-detail?id={tournamentId}" }
+            )
+        ) { backStackEntry ->
+            val tournamentId = backStackEntry.arguments?.getString("tournamentId") ?: ""
+            com.sportynix.app.presentation.tournaments.TournamentDetailScreen(
+                tournamentId = tournamentId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToMatchDetails = { matchId ->
+                    navController.navigate(Screen.MatchDetails.createRoute(matchId))
+                },
+                onNavigateToLiveScoring = { matchId ->
+                    navController.navigate(Screen.LiveCricketScoring.createRoute(matchId))
+                }
+            )
+        }
+
+        composable(Screen.TournamentCreate.route) {
+            com.sportynix.app.presentation.tournaments.TournamentCreateScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { tournamentId ->
+                    navController.navigate(Screen.TournamentDetail.createRoute(tournamentId)) {
+                        popUpTo(Screen.TournamentCreate.route) { inclusive = true }
+                    }
+                }
             )
         }
 

@@ -3,8 +3,8 @@ package com.sportynix.app.presentation.tournaments
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportynix.app.core.network.ApiResult
-import com.sportynix.app.data.remote.dto.TournamentDto
-import com.sportynix.app.data.remote.dto.TournamentMatchDto
+import com.sportynix.app.data.remote.dto.FullTournamentDto
+import com.sportynix.app.data.remote.dto.FullTournamentMatchDto
 import com.sportynix.app.data.repository.TournamentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,10 +15,12 @@ import javax.inject.Inject
 
 data class TournamentUiState(
     val isLoading: Boolean = false,
-    val tournaments: List<TournamentDto> = emptyList(),
-    val selectedTournament: TournamentDto? = null,
-    val matches: List<TournamentMatchDto> = emptyList(),
-    val registrationSuccessMessage: String? = null,
+    val tournaments: List<FullTournamentDto> = emptyList(),
+    val selectedTournament: FullTournamentDto? = null,
+    val matches: List<FullTournamentMatchDto> = emptyList(),
+    val searchQuery: String = "",
+    val selectedSportFilter: String = "All",
+    val selectedStatusFilter: String = "All",
     val error: String? = null
 )
 
@@ -34,10 +36,35 @@ class TournamentViewModel @Inject constructor(
         loadTournaments()
     }
 
-    fun loadTournaments(search: String? = null) {
+    fun onSearchQueryChanged(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        loadTournaments(query)
+    }
+
+    fun onSportFilterChanged(sport: String) {
+        _uiState.value = _uiState.value.copy(selectedSportFilter = sport)
+        val sportParam = if (sport == "All") null else sport.lowercase()
+        loadTournaments(_uiState.value.searchQuery, sportParam)
+    }
+
+    fun onStatusFilterChanged(status: String) {
+        _uiState.value = _uiState.value.copy(selectedStatusFilter = status)
+        val statusParam = if (status == "All") null else status.lowercase()
+        loadTournaments(_uiState.value.searchQuery, status = statusParam)
+    }
+
+    fun loadTournaments(
+        search: String? = null,
+        sportType: String? = null,
+        status: String? = null
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            when (val result = repository.getTournaments(search)) {
+            when (val result = repository.getTournaments(
+                search = search?.ifBlank { null },
+                sportType = sportType?.ifBlank { null },
+                status = status?.ifBlank { null }
+            )) {
                 is ApiResult.Success -> {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -53,36 +80,6 @@ class TournamentViewModel @Inject constructor(
                 else -> {
                     _uiState.value = _uiState.value.copy(isLoading = false)
                 }
-            }
-        }
-    }
-
-    fun loadTournamentDetail(id: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            val detailRes = repository.getTournamentDetail(id)
-            val matchesRes = repository.getTournamentMatches(id)
-
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                selectedTournament = (detailRes as? ApiResult.Success)?.data,
-                matches = (matchesRes as? ApiResult.Success)?.data ?: emptyList()
-            )
-        }
-    }
-
-    fun registerTeam(tournamentId: String, teamName: String, captainPhone: String) {
-        viewModelScope.launch {
-            when (val result = repository.registerForTournament(tournamentId, teamName, captainPhone)) {
-                is ApiResult.Success -> {
-                    _uiState.value = _uiState.value.copy(
-                        registrationSuccessMessage = result.data.message
-                    )
-                }
-                is ApiResult.Error -> {
-                    _uiState.value = _uiState.value.copy(error = result.message)
-                }
-                else -> {}
             }
         }
     }
